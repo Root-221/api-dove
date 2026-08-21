@@ -1,0 +1,66 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092404"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "feed_backs",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "commentaire",
+      "fieldType": "TextBlob"
+    },
+    {
+      "fieldName": "note",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["min", "max"],
+      "fieldValidateRulesMax": "5",
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "dateCreation",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "statutTraitement",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "80"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "FeedBack",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "utilisateur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "titre",
+      "otherEntityName": "contenu",
+      "relationshipName": "contenu",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

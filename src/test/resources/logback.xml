@@ -4,7 +4,7 @@
 <configuration scan="true">
     <include resource="org/springframework/boot/logging/logback/base.xml"/>
 
-    <logger name="com.sonatel.api.dove" level="INFO"/>
+    <logger name="sn.dove.backend" level="INFO"/>
 
     <logger name="tech.jhipster" level="WARN"/>
 
@@ -20,6 +20,7 @@
     <logger name="com.ryantenney" level="WARN"/>
     <logger name="com.sun" level="WARN"/>
     <logger name="com.zaxxer" level="WARN"/>
+    <logger name="com.github.benmanes.caffeine" level="WARN"/>
     <logger name="org.apache" level="WARN"/>
     <logger name="org.apache.catalina.startup.DigesterFactory" level="OFF"/>
     <logger name="org.bson" level="WARN"/>

@@ -1,0 +1,60 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092358"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "signalements",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "motif",
+      "fieldType": "TextBlob",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "dateSignalement",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "statut",
+      "fieldType": "StatutSignalement",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "ATTENTE,A_TRAITER,A_REFUSER,TRAITER"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Signalement",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "utilisateur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "titre",
+      "otherEntityName": "contenu",
+      "relationshipName": "contenu",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

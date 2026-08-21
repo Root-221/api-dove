@@ -1,0 +1,26 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092405"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "metiers",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "libelle",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "150"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Metier",
+  "relationships": [],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

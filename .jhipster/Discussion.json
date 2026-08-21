@@ -1,0 +1,59 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092407"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "discussions",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "titre",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "dateCreation",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Discussion",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "otherEntityName": "message",
+      "otherEntityRelationshipName": "discussion",
+      "relationshipName": "messages",
+      "relationshipSide": "left",
+      "relationshipType": "one-to-many"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "createur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "otherEntityName": "communauteNandite",
+      "otherEntityRelationshipName": "discussions",
+      "relationshipName": "communauteNandite",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

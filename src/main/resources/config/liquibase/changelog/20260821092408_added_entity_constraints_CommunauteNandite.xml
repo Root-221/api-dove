@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity CommunauteNandite.
+    -->
+    <changeSet id="20260821092408-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="communautes_nandite_id"
+                                 baseTableName="rel_communautes_nandite__membres"
+                                 constraintName="fk_rel_communautes_nandite__membres__communautes_nandite_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="communautes_nandite"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="membres_id"
+                                 baseTableName="rel_communautes_nandite__membres"
+                                 constraintName="fk_rel_communautes_nandite__membres__membres_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 />
+    </changeSet>
+</databaseChangeLog>

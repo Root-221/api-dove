@@ -1,0 +1,138 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092401"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "contenus",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "titre",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "255"
+    },
+    {
+      "fieldName": "description",
+      "fieldType": "TextBlob",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "typeContenu",
+      "fieldType": "TypeContenu",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "FAQ,FICHEPRATIQUE,VIDEO"
+    },
+    {
+      "fieldName": "statut",
+      "fieldType": "StatutContenu",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "BROUILLON,EN_ATTENTE_VALIDATION,PUBLIER,A_REVISER,ARCHIVER,VALIDER"
+    },
+    {
+      "fieldName": "version",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["required", "min"],
+      "fieldValidateRulesMin": "1"
+    },
+    {
+      "fieldName": "datePublication",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "derniereMiseAJour",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    },
+    {
+      "fieldName": "prochaineRevue",
+      "fieldType": "Instant"
+    },
+    {
+      "fieldName": "motsCles",
+      "fieldType": "TextBlob"
+    },
+    {
+      "fieldName": "transcription",
+      "fieldType": "TextBlob"
+    },
+    {
+      "fieldName": "progression",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["min", "max"],
+      "fieldValidateRulesMax": "100",
+      "fieldValidateRulesMin": "0"
+    },
+    {
+      "fieldName": "dateCreation",
+      "fieldType": "Instant",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Contenu",
+  "pagination": "pagination",
+  "relationships": [
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "nom",
+      "otherEntityName": "application",
+      "relationshipName": "application",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "libelle",
+      "otherEntityName": "module",
+      "relationshipName": "module",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "libelle",
+      "otherEntityName": "metier",
+      "relationshipName": "metier",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "auteur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "SET NULL"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "validateur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

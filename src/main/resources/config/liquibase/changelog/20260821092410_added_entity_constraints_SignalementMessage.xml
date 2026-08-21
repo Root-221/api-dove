@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity SignalementMessage.
+    -->
+    <changeSet id="20260821092410-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="utilisateur_id"
+                                 baseTableName="signalement_messages"
+                                 constraintName="fk_signalement_messages__utilisateur_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="message_id"
+                                 baseTableName="signalement_messages"
+                                 constraintName="fk_signalement_messages__message_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="messages"
+                                 />
+    </changeSet>
+</databaseChangeLog>

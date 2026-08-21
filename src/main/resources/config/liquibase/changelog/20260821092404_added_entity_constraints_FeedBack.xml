@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity FeedBack.
+    -->
+    <changeSet id="20260821092404-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="utilisateur_id"
+                                 baseTableName="feed_backs"
+                                 constraintName="fk_feed_backs__utilisateur_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="contenu_id"
+                                 baseTableName="feed_backs"
+                                 constraintName="fk_feed_backs__contenu_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="contenus"
+                                 onDelete="RESTRICT"
+                                 />
+    </changeSet>
+</databaseChangeLog>

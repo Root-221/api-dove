@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092357"
+  },
+  "applications": ["doveBackend"],
+  "documentation": "Classe d'association entre Utilisateur et Role.",
+  "dto": "mapstruct",
+  "entityTableName": "utilisateur_roles",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "UtilisateurRole",
+  "relationships": [
+    {
+      "options": {
+        "onDelete": "CASCADE"
+      },
+      "otherEntityField": "login",
+      "otherEntityName": "utilisateur",
+      "relationshipName": "utilisateur",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    },
+    {
+      "options": {
+        "onDelete": "RESTRICT"
+      },
+      "otherEntityField": "role",
+      "otherEntityName": "role",
+      "relationshipName": "role",
+      "relationshipSide": "left",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

@@ -3,7 +3,7 @@
 
 <configuration scan="true">
     <!-- Patterns based on https://github.com/spring-projects/spring-boot/blob/v3.0.0/spring-boot-project/spring-boot/src/main/resources/org/springframework/boot/logging/logback/defaults.xml -->
-    <conversionRule conversionWord="crlf" converterClass="com.sonatel.api.dove.config.CRLFLogConverter" />
+    <conversionRule conversionWord="crlf" converterClass="sn.dove.backend.config.CRLFLogConverter" />
     <property name="CONSOLE_LOG_PATTERN" value="${CONSOLE_LOG_PATTERN:-%clr(%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd'T'HH:mm:ss.SSSXXX}}){faint} %clr(${LOG_LEVEL_PATTERN:-%5p}) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %crlf(%m){red} %n${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}}"/>
     <!-- The FILE and ASYNC appenders are here as examples for a production configuration -->
     <!--
@@ -27,7 +27,7 @@
     </root>
     -->
 
-    <logger name="com.sonatel.api.dove" level="INFO"/>
+    <logger name="sn.dove.backend" level="INFO"/>
 
     <logger name="angus.activation" level="WARN"/>
     <logger name="jakarta.activation" level="WARN"/>
@@ -35,11 +35,10 @@
     <logger name="jakarta.management.remote" level="WARN"/>
     <logger name="jakarta.xml.bind" level="WARN"/>
     <logger name="jdk.event.security" level="INFO"/>
-    <logger name="org.redisson" level="WARN" />
     <logger name="com.ryantenney" level="WARN"/>
     <logger name="com.sun" level="WARN"/>
     <logger name="com.zaxxer" level="WARN"/>
-    <logger name="io.netty" level="WARN"/>
+    <logger name="com.github.benmanes.caffeine" level="WARN"/>
     <logger name="org.apache" level="WARN"/>
     <logger name="org.apache.catalina.startup.DigesterFactory" level="OFF"/>
     <logger name="org.bson" level="WARN"/>

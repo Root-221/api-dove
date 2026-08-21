@@ -1,6 +1,16 @@
-# apidove
+# doveBackend
 
 This application was generated using JHipster 9.2.0, you can find documentation and help at [https://www.jhipster.tech/documentation-archive/v9.2.0](https://www.jhipster.tech/documentation-archive/v9.2.0).
+
+> 💡 **Guide de Test rapide et Endpoints complets :** Retrouvez la documentation détaillée des routes et tests dans [README_TEST_BACKEND.md](README_TEST_BACKEND.md).
+
+### 🚀 Liens Utiles pour Tester le Backend en local
+
+- **Swagger UI (Documentation interactive)** : [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
+- **Spécification OpenAPI (JSON)** : [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+- **Health Check (Actuator)** : [http://localhost:8080/management/health](http://localhost:8080/management/health)
+- **Informations d'Authentification (OIDC)** : [http://localhost:8080/api/auth-info](http://localhost:8080/api/auth-info)
+- **Console Keycloak** : [http://localhost:9080](http://localhost:9080) (`admin`/`admin`)
 
 ## Project Structure
 
@@ -159,7 +169,7 @@ jhipster:
 
 ### Packaging as jar
 
-To build the final jar and optimize the apidove application for production, run:
+To build the final jar and optimize the doveBackend application for production, run:
 
 ```bash
 ./mvnw -Pprod clean verify

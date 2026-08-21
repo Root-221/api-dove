@@ -1,0 +1,26 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092356"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "roles",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "role",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "unique", "maxlength"],
+      "fieldValidateRulesMaxlength": "80"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Role",
+  "relationships": [],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

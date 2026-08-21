@@ -15,7 +15,7 @@
 
 spring:
   application:
-    name: apidove
+    name: doveBackend
   # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
     contexts: test
@@ -39,13 +39,13 @@ spring:
           principal-claim-name: preferred_username
   task:
     execution:
-      thread-name-prefix: apidove-task-
+      thread-name-prefix: dove-backend-task-
       pool:
         core-size: 1
         max-size: 50
         queue-capacity: 10000
     scheduling:
-      thread-name-prefix: apidove-scheduling-
+      thread-name-prefix: dove-backend-scheduling-
       pool:
         size: 20
   thymeleaf:
@@ -62,7 +62,7 @@ server:
 # ===================================================================
 jhipster:
   mail:
-    from: apidove@localhost.com
+    from: doveBackend@localhost.com
     base-url: http://127.0.0.1:8080
   logging:
     # To test json console appender

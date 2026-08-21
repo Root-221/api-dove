@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Contenu.
+    -->
+    <changeSet id="20260821092401-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="application_id"
+                                 baseTableName="contenus"
+                                 constraintName="fk_contenus__application_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="applications"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="module_id"
+                                 baseTableName="contenus"
+                                 constraintName="fk_contenus__module_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="modules"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="metier_id"
+                                 baseTableName="contenus"
+                                 constraintName="fk_contenus__metier_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="metiers"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="auteur_id"
+                                 baseTableName="contenus"
+                                 constraintName="fk_contenus__auteur_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="validateur_id"
+                                 baseTableName="contenus"
+                                 constraintName="fk_contenus__validateur_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 onDelete="SET NULL"
+                                 />
+    </changeSet>
+</databaseChangeLog>

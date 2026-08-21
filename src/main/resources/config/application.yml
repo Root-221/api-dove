@@ -92,7 +92,7 @@ management:
 
 spring:
   application:
-    name: apidove
+    name: doveBackend
   docker:
     compose:
       enabled: true
@@ -152,13 +152,13 @@ spring:
             scope: openid, profile
   task:
     execution:
-      thread-name-prefix: apidove-task-
+      thread-name-prefix: dove-backend-task-
       pool:
         core-size: 2
         max-size: 50
         queue-capacity: 10000
     scheduling:
-      thread-name-prefix: apidove-scheduling-
+      thread-name-prefix: dove-backend-scheduling-
       pool:
         size: 2
   thymeleaf:
@@ -189,12 +189,12 @@ info:
 
 jhipster:
   mail:
-    from: apidove@localhost
+    from: doveBackend@localhost
   api-docs:
     default-include-pattern: /api/**
     management-include-pattern: /management/**
-    title: Apidove API
-    description: Apidove API documentation
+    title: Dove Backend API
+    description: Dove Backend API documentation
     version: 0.0.1
     terms-of-service-url:
     contact-name:

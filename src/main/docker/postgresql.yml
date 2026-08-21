@@ -1,12 +1,12 @@
 # This configuration is intended for development purpose, it's **your** responsibility to harden it for production
-name: apidove
+name: dovebackend
 services:
   postgresql:
     image: postgres:18.4
     # volumes:
-    #   - ~/volumes/jhipster/apidove/postgresql/:/var/lib/postgresql/data/
+    #   - ~/volumes/jhipster/doveBackend/postgresql/:/var/lib/postgresql/data/
     environment:
-      - POSTGRES_USER=apidove
+      - POSTGRES_USER=doveBackend
       - POSTGRES_HOST_AUTH_METHOD=trust
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER}']

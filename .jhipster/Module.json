@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "changelogDate": "20260821092400"
+  },
+  "applications": ["doveBackend"],
+  "dto": "mapstruct",
+  "entityTableName": "modules",
+  "fields": [
+    {
+      "fieldName": "id",
+      "fieldType": "UUID"
+    },
+    {
+      "fieldName": "libelle",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "maxlength"],
+      "fieldValidateRulesMaxlength": "150"
+    }
+  ],
+  "jpaMetamodelFiltering": true,
+  "name": "Module",
+  "relationships": [
+    {
+      "otherEntityName": "application",
+      "otherEntityRelationshipName": "modules",
+      "relationshipName": "application",
+      "relationshipSide": "right",
+      "relationshipType": "many-to-one",
+      "relationshipValidateRules": "required"
+    }
+  ],
+  "searchEngine": "no",
+  "service": "serviceClass",
+  "skipClient": true
+}

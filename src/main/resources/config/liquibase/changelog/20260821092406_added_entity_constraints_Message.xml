@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd">
+    <!--
+        Added the constraints for entity Message.
+    -->
+    <changeSet id="20260821092406-2" author="jhipster">
+
+        <addForeignKeyConstraint baseColumnNames="emetteur_id"
+                                 baseTableName="messages"
+                                 constraintName="fk_messages__emetteur_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="utilisateurs"
+                                 onDelete="RESTRICT"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="metier_id"
+                                 baseTableName="messages"
+                                 constraintName="fk_messages__metier_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="metiers"
+                                 onDelete="SET NULL"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="discussion_id"
+                                 baseTableName="messages"
+                                 constraintName="fk_messages__discussion_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="discussions"
+                                 />
+
+        <addForeignKeyConstraint baseColumnNames="message_parent_id"
+                                 baseTableName="messages"
+                                 constraintName="fk_messages__message_parent_id"
+                                 referencedColumnNames="id"
+                                 referencedTableName="messages"
+                                 />
+    </changeSet>
+</databaseChangeLog>

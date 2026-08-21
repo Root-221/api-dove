@@ -1,0 +1,230 @@
+// ============================================================================
+// DOVE - MODELE JHIPSTER FIDELE AU DIAGRAMME DE CLASSES FOURNI
+// JHipster 9.2 / Spring Boot / PostgreSQL / backend uniquement
+//
+// Les noms d'entites reprennent exactement les classes du diagramme.
+// Chaque entite declare explicitement `id UUID` : JHipster genere ainsi une
+// cle primaire PostgreSQL UUID auto-generee et des cles etrangeres UUID.
+// TypeContenu est une enumeration portee directement par Contenu.
+// ============================================================================
+
+application {
+  config {
+    baseName doveBackend
+    applicationType monolith
+    packageName sn.dove.backend
+    authenticationType oauth2
+    databaseType sql
+    devDatabaseType postgresql
+    prodDatabaseType postgresql
+    buildTool maven
+    clientFramework no
+    skipClient true
+    serverPort 8080
+    cacheProvider caffeine
+    enableHibernateCache true
+    enableTranslation false
+  }
+  entities *
+}
+
+// ============================================================================
+// ENUMERATIONS DU DIAGRAMME
+// ============================================================================
+
+enum StatutSignalement {
+  ATTENTE,
+  A_TRAITER,
+  A_REFUSER,
+  TRAITER
+}
+
+enum StatutContenu {
+  BROUILLON,
+  EN_ATTENTE_VALIDATION,
+  PUBLIER,
+  A_REVISER,
+  ARCHIVER,
+  VALIDER
+}
+
+enum TypeContenu {
+  FAQ,
+  FICHEPRATIQUE,
+  VIDEO
+}
+
+// ============================================================================
+// CLASSES DU DIAGRAMME
+// ============================================================================
+
+entity Utilisateur (utilisateurs) {
+  id UUID
+  nom String required maxlength(100)
+  prenom String required maxlength(100)
+  email String required unique maxlength(255)
+  login String required unique maxlength(100)
+}
+
+entity Role (roles) {
+  id UUID
+  role String required unique maxlength(80)
+}
+
+/** Classe d'association entre Utilisateur et Role. */
+entity UtilisateurRole (utilisateur_roles) {
+  id UUID
+}
+
+entity Signalement (signalements) {
+  id UUID
+  motif TextBlob required
+  dateSignalement Instant required
+  statut StatutSignalement required
+}
+
+entity Application (applications) {
+  id UUID
+  nom String required maxlength(150)
+  description TextBlob
+  dateAjout LocalDate required
+}
+
+entity Module (modules) {
+  id UUID
+  libelle String required maxlength(150)
+}
+
+entity Contenu (contenus) {
+  id UUID
+  titre String required maxlength(255)
+  description TextBlob required
+  typeContenu TypeContenu required
+  statut StatutContenu required
+  version Integer required min(1)
+  datePublication Instant
+  derniereMiseAJour Instant required
+  prochaineRevue Instant
+  motsCles TextBlob
+  transcription TextBlob
+  progression Integer min(0) max(100)
+  dateCreation Instant required
+}
+
+entity FAQ (faqs) {
+  id UUID
+  titre String required maxlength(255)
+  description TextBlob
+  question TextBlob required
+  reponse TextBlob required
+}
+
+entity Media (medias) {
+  id UUID
+  titre String required maxlength(255)
+  etape Integer min(0)
+  description TextBlob
+  url String required maxlength(512)
+}
+
+entity FeedBack (feed_backs) {
+  id UUID
+  commentaire TextBlob
+  note Integer min(0) max(5)
+  dateCreation Instant required
+  statutTraitement String required maxlength(80)
+}
+
+entity Metier (metiers) {
+  id UUID
+  libelle String required maxlength(150)
+}
+
+entity Message (messages) {
+  id UUID
+  contenu TextBlob required
+  dateEnvoi Instant required
+}
+
+entity Discussion (discussions) {
+  id UUID
+  titre String required maxlength(255)
+  dateCreation Instant required
+}
+
+entity CommunauteNandite (communautes_nandite) {
+  id UUID
+  nom String required maxlength(150)
+  description TextBlob
+}
+
+entity Reaction (reactions) {
+  id UUID
+  type String required maxlength(80)
+}
+
+entity SignalementMessage (signalement_messages) {
+  id UUID
+  motif TextBlob required
+  dateSignalement Instant required
+}
+
+// ============================================================================
+// RELATIONS DU DIAGRAMME
+// ============================================================================
+
+relationship OneToMany {
+  Application{modules} to Module{application required},
+  CommunauteNandite{discussions} to Discussion{communauteNandite required},
+  Discussion{messages} to Message{discussion required},
+  Message{reponses} to Message{messageParent},
+  Message{signalements} to SignalementMessage{message required}
+}
+
+relationship ManyToOne {
+  // Classe d'association Utilisateur - Role
+  UtilisateurRole{utilisateur(login) required} to @OnDelete("CASCADE") Utilisateur,
+  UtilisateurRole{role(role) required} to @OnDelete("RESTRICT") Role,
+
+  // Signalement de contenu
+  Signalement{utilisateur(login) required} to @OnDelete("RESTRICT") Utilisateur,
+  Signalement{contenu(titre) required} to @OnDelete("RESTRICT") Contenu,
+
+  // Exposition d'un contenu dans le referentiel metier
+  Contenu{application(nom) required} to @OnDelete("RESTRICT") Application,
+  Contenu{module(libelle) required} to @OnDelete("RESTRICT") Module,
+  Contenu{metier(libelle) required} to @OnDelete("RESTRICT") Metier,
+  Contenu{auteur(login) required} to @OnDelete("RESTRICT") Utilisateur,
+  Contenu{validateur(login)} to @OnDelete("SET NULL") Utilisateur,
+
+  FAQ{contenu(titre) required} to @OnDelete("CASCADE") Contenu,
+  Media{contenu(titre)} to @OnDelete("CASCADE") Contenu,
+
+  // Feedback
+  FeedBack{utilisateur(login) required} to @OnDelete("RESTRICT") Utilisateur,
+  FeedBack{contenu(titre) required} to @OnDelete("RESTRICT") Contenu,
+
+  // Communaute, discussions, messages et reactions
+  Discussion{createur(login) required} to @OnDelete("RESTRICT") Utilisateur,
+  Message{emetteur(login) required} to @OnDelete("RESTRICT") Utilisateur,
+  Message{metier(libelle)} to @OnDelete("SET NULL") Metier,
+  Reaction{utilisateur(login) required} to @OnDelete("CASCADE") Utilisateur,
+  Reaction{message(contenu) required} to @OnDelete("CASCADE") Message,
+  SignalementMessage{utilisateur(login) required} to @OnDelete("RESTRICT") Utilisateur
+}
+
+relationship ManyToMany {
+  CommunauteNandite{membres(login)} to Utilisateur
+}
+
+// ============================================================================
+// OPTIONS JHIPSTER
+// ============================================================================
+
+dto * with mapstruct
+service * with serviceClass
+filter *
+skipClient *
+
+use pagination for Utilisateur, Signalement, Contenu, FAQ, FeedBack,
+  Message, Discussion, Reaction, SignalementMessage
