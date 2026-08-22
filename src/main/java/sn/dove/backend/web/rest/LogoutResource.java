@@ -2,6 +2,7 @@ package sn.dove.backend.web.rest;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * REST controller for managing global OIDC logout.
  */
 @RestController
+@ConditionalOnBean(ClientRegistrationRepository.class)
 public class LogoutResource {
 
     private final ClientRegistrationRepository registrationRepository;

@@ -117,6 +117,8 @@ Desktop.ini
 ######################
 /bin/
 /deploy/
+/.dove-local/
+/.dove-storage/
 
 ######################
 # Logs
@@ -126,6 +128,9 @@ Desktop.ini
 ######################
 # Others
 ######################
+.env
+.env.*
+!.env.example
 *.class
 *.*~
 *~

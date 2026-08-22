@@ -1,6 +1,7 @@
 package sn.dove.backend.config;
 
 import java.time.Duration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -10,6 +11,7 @@ import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedCli
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 
 @Configuration
+@ConditionalOnBean(ClientRegistrationRepository.class)
 public class OAuth2Configuration {
 
     @Bean

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260822160000-1" author="dove">
+        <createTable tableName="dove_resource">
+            <column name="id" type="uuid">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_dove_resource"/>
+            </column>
+            <column name="resource_type" type="varchar(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="external_id" type="varchar(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="payload" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="record_version" type="bigint" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="${datetimeType}">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="${datetimeType}">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint
+            tableName="dove_resource"
+            columnNames="resource_type, external_id"
+            constraintName="ux_dove_resource_type_external"/>
+        <createIndex tableName="dove_resource" indexName="ix_dove_resource_type">
+            <column name="resource_type"/>
+        </createIndex>
+        <createIndex tableName="dove_resource" indexName="ix_dove_resource_updated_at">
+            <column name="updated_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

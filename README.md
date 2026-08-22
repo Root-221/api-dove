@@ -1,309 +1,145 @@
-# doveBackend
+# DOVE Backend
 
-This application was generated using JHipster 9.2.0, you can find documentation and help at [https://www.jhipster.tech/documentation-archive/v9.2.0](https://www.jhipster.tech/documentation-archive/v9.2.0).
+API Spring Boot sécurisée de DOVE. Elle remplace le serveur JSON de démonstration du frontend,
+persiste les données applicatives, applique les permissions et les périmètres métier côté serveur,
+et délègue l'authentification de production à Keycloak Sonatel.
 
-> 💡 **Guide de Test rapide et Endpoints complets :** Retrouvez la documentation détaillée des routes et tests dans [README_TEST_BACKEND.md](README_TEST_BACKEND.md).
+## Ce qui est opérationnel
 
-### 🚀 Liens Utiles pour Tester le Backend en local
+- API REST versionnée sous `/api/v1` ;
+- recherche de contenus avec une réponse canonique pouvant contenir `VIDEO`, `FICHEPRATIQUE` et
+  `FAQ` ;
+- création/modification dans le même modèle, détection de titres similaires et refus des doublons
+  exacts ;
+- filtrage par application, métier et module pour les utilisateurs métier et Nandité ;
+- consultation inter-métiers explicite pour User Enablement, sans élargir son périmètre d'écriture ;
+- workflow brouillon, validation, publication, révision et archivage ;
+- favoris, progression, feedback, propositions Nandité, communauté, notifications et analytics ;
+- administration des utilisateurs, périmètres, référentiels, RBAC, audit et opérations ;
+- validation JWT (`iss`, signature, durée et `aud`) et autorisations DOVE locales ;
+- stockage média local en développement et adaptateur de passerelle cloud en production ;
+- PostgreSQL + Liquibase en `dev`/`prod`, H2 persistant en profil `local`.
 
-- **Swagger UI (Documentation interactive)** : [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-- **Spécification OpenAPI (JSON)** : [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
-- **Health Check (Actuator)** : [http://localhost:8080/management/health](http://localhost:8080/management/health)
-- **Informations d'Authentification (OIDC)** : [http://localhost:8080/api/auth-info](http://localhost:8080/api/auth-info)
-- **Console Keycloak** : [http://localhost:9080](http://localhost:9080) (`admin`/`admin`)
+Les anciens contrôleurs générés par JHipster sous `/api/**` ne font pas partie du contrat et sont
+fermés par Spring Security. Seule l'API `/api/v1/**` doit être consommée.
 
-## Project Structure
+## Démarrage local complet
 
-Node is required for generation and recommended for development. `package.json` is always generated for a better development experience with prettier, commit hooks, scripts and so on.
+Prérequis recommandés : Java 21, Node 24.15 et npm 11.
 
-In the project root, JHipster generates configuration files for tools like git, prettier, eslint, husky, and others that are well known and you can find references in the web.
-
-`/src/*` structure follows default Java structure.
-
-- `.yo-rc.json` - Yeoman configuration file
-  JHipster configuration is stored in this file at `generator-jhipster` key. You may find `generator-jhipster-*` for specific blueprints configuration.
-- `.yo-resolve` (optional) - Yeoman conflict resolver
-  Allows to use a specific action when conflicts are found skipping prompts for files that matches a pattern. Each line should match `[pattern] [action]` with pattern been a [Minimatch](https://github.com/isaacs/minimatch#minimatch) pattern and action been one of skip (default if omitted) or force. Lines starting with `#` are considered comments and are ignored.
-- `.jhipster/*.json` - JHipster entity configuration files
-- `/src/main/docker` - Docker configurations for the application and services that the application depends on
-
-## Development
-
-To start your application in the dev profile, run:
+Depuis le frontend :
 
 ```bash
-./mvnw
+cd ../DoveFront
+npm install
+npm run dev
 ```
 
-For further instructions on how to develop with JHipster, have a look at [Using JHipster in development][].
+`npm run dev` lance Angular sur `http://localhost:4200` et ce backend sur
+`http://localhost:8080`. Le profil local utilise `.dove-local/database` et importe `DoveFront/db.json`
+une seule fois lorsque la base est vide. Ce JSON est donc uniquement une fixture d'initialisation :
+il n'est jamais servi par JSON Server.
 
-### OAuth 2.0 / OpenID Connect
-
-Congratulations! You've selected an excellent way to secure your JHipster application. If you're not sure what OAuth and OpenID Connect (OIDC) are, please see [What the Heck is OAuth?](https://developer.okta.com/blog/2017/06/21/what-the-heck-is-oauth)
-
-To log in to your app, you'll need to have [Keycloak](https://keycloak.org) up and running. The JHipster Team has created a Docker container for you that has the default users and roles. Start Keycloak using the following command.
+Pour lancer uniquement l'API :
 
 ```bash
-docker compose -f src/main/docker/keycloak.yml up
+./mvnw -Dspring-boot.run.profiles=local spring-boot:run
 ```
 
-The security settings in `src/main/resources/config/application.yml` are configured for this image.
+Sur une machine utilisant provisoirement une version Java hors de la plage du projet, ajouter
+`-Denforcer.skip=true`. Cette option ne doit pas masquer la vérification Java 21 en CI.
 
-```yaml
-spring:
-  ...
-  security:
-    oauth2:
-      client:
-        provider:
-          oidc:
-            issuer-uri: http://localhost:9080/realms/jhipster
-        registration:
-          oidc:
-            client-id: web_app
-            client-secret: web_app
-            scope: openid,profile,email
+Sondes utiles :
+
+```text
+GET http://localhost:8080/management/health
+GET http://localhost:8080/api/v1/me
 ```
 
-Some of Keycloak configuration is now done in build time and the other part before running the app, here is the [list](https://www.keycloak.org/server/all-config) of all build and configuration options.
+La documentation interactive locale est disponible sur
+`http://localhost:8080/swagger-ui/index.html`. Le contrat OpenAPI JSON est exposé sur
+`http://localhost:8080/v3/api-docs`. Ces deux routes sont publiques uniquement lorsque
+`dove.auth.dev-header-enabled=true`; elles restent réservées au rôle administrateur dans les
+environnements sécurisés.
 
-Before moving to production, please make sure to follow this [guide](https://www.keycloak.org/server/configuration) for better security and performance.
+En local uniquement, Angular ajoute `X-Dove-User-Id`. Le compte par défaut est Bakary Diassy.
+Le sélecteur de profils de la page de connexion obtient ses comptes via `/api/v1/dev/users`.
 
-Also, you should never use `start-dev` nor `KC_DB=dev-file` in production.
+## Profils et données
 
-When using Kubernetes, importing should be done using init-containers (with a volume when using `db=dev-file`).
+| Profil Spring | Base       | Authentification        | Stockage                | Seed             |
+| ------------- | ---------- | ----------------------- | ----------------------- | ---------------- |
+| `local`       | H2 fichier | header de développement | dossier `.dove-storage` | oui si base vide |
+| `dev`         | PostgreSQL | header de développement | local                   | oui si base vide |
+| `prod`        | PostgreSQL | Bearer JWT Keycloak     | passerelle cloud        | non              |
 
-### Okta
+Les dossiers `.dove-local` et `.dove-storage` sont ignorés par Git.
 
-If you'd like to use Okta instead of Keycloak, it's pretty quick.
-
-First, you'll need to create a free developer account at <https://developer.okta.com/signup/>. After doing so, you'll get your own Okta domain, that has a name like `https://dev-123456.okta.com`.
-
-Modify `src/main/resources/config/application.yml` to use your Okta settings.
-
-```yaml
-spring:
-  ...
-  security:
-    oauth2:
-      client:
-        provider:
-          oidc:
-            issuer-uri: https://{yourOktaDomain}/oauth2/default
-        registration:
-          oidc:
-            client-id: {clientId}
-            client-secret: {clientSecret}
-security:
-```
-
-Create an OIDC App in Okta to get a `{clientId}` and `{clientSecret}`. To do this, log in to your Okta Developer account and navigate to **Applications** > **Add Application**. Click **Web** and click the **Next** button. Give the app a name you’ll remember, specify `http://localhost:8080` as a Base URI, and `http://localhost:8080/login/oauth2/code/oidc` as a Login Redirect URI. Click **Done**, then Edit and add `http://localhost:8080` as a Logout redirect URI. Copy and paste the client ID and secret into your `application.yml` file.
-
-Create a `ROLE_ADMIN` and `ROLE_USER` group and add users into them. Modify e2e tests to use this account when running integration tests.
-
-Navigate to **API** > **Authorization Servers**, click the **Authorization Servers** tab and edit the default one. Click the **Claims** tab and **Add Claim**. Name it "groups", and include it in the ID Token. Set the value type to "Groups" and set the filter to be a Regex of `.*`.
-
-After making these changes, you should be good to go! If you have any issues, please post them to [Stack Overflow](https://stackoverflow.com/questions/tagged/jhipster). Make sure to tag your question with "jhipster" and "okta".
-
-### Auth0
-
-If you'd like to use [Auth0](https://auth0.com/) instead of Keycloak, follow the configuration steps below:
-
-- Create a free developer account at [Sign Up - Auth0](https://auth0.com/signup). After successful sign-up, your account will be associated with a unique domain like `dev-xxx.us.auth0.com`
-- Create a new application of type `Regular Web Applications`. Switch to the `Settings` tab, and configure your application settings like:
-  - Allowed Callback URLs: `http://localhost:8080/login/oauth2/code/oidc`
-  - Allowed Logout URLs: `http://localhost:8080/`
-- Navigate to **User Management** > **Roles** and create new roles named `ROLE_ADMIN`, and `ROLE_USER`.
-- Navigate to **User Management** > **Users** and create a new user account. Click on the **Role** tab to assign roles to the newly created user account.
-- Navigate to **Auth Pipeline** > **Rules** and create a new Rule. Choose `Empty rule` template. Provide a meaningful name like `JHipster claims` and replace `Script` content with the following and Save.
-
-```javascript
-function (user, context, callback) {
-  user.preferred_username = user.email;
-  const roles = (context.authorization || {}).roles;
-
-  function prepareCustomClaimKey(claim) {
-    return `https://www.jhipster.tech/${claim}`;
-  }
-
-  const rolesClaim = prepareCustomClaimKey('roles');
-
-  if (context.idToken) {
-    context.idToken[rolesClaim] = roles;
-  }
-
-  if (context.accessToken) {
-    context.accessToken[rolesClaim] = roles;
-  }
-
-  callback(null, user, context);
-}
-```
-
-- In your `JHipster` application, modify `src/main/resources/config/application.yml` to use your Auth0 application settings:
-
-```yaml
-spring:
-  ...
-  security:
-    oauth2:
-      client:
-        provider:
-          oidc:
-            # make sure to include the ending slash!
-            issuer-uri: https://{your-auth0-domain}/
-        registration:
-          oidc:
-            client-id: {clientId}
-            client-secret: {clientSecret}
-            scope: openid,profile,email
-jhipster:
-  ...
-  security:
-    oauth2:
-      audience:
-        - https://{your-auth0-domain}/api/v2/
-```
-
-## Building for production
-
-### Packaging as jar
-
-To build the final jar and optimize the doveBackend application for production, run:
+## Validation
 
 ```bash
+./mvnw -DskipTests compile
+./mvnw verify
 ./mvnw -Pprod clean verify
 ```
 
-To ensure everything worked, run:
+Les tests d'intégration JHipster utilisent Testcontainers : Docker doit être démarré pour
+`./mvnw verify`. Le build de production requiert Java 21 à 25 selon l'enforcer du projet.
+
+## Configuration de production
+
+Variables obligatoires ou à confirmer avec les équipes Sonatel :
+
+```text
+DOVE_DATABASE_URL=jdbc:postgresql://postgres:5432/dove
+DOVE_DATABASE_USERNAME=dove
+DOVE_DATABASE_PASSWORD=<secret injecté>
+DOVE_KEYCLOAK_ISSUER_URI=https://sso.sonatel.sn/realms/sonatel
+DOVE_KEYCLOAK_AUDIENCE=dove-api
+DOVE_KEYCLOAK_WEB_CLIENT_ID=dove-web
+DOVE_ALLOWED_ORIGINS=https://dove.sonatel.sn
+DOVE_STORAGE_PROVIDER=gateway
+DOVE_STORAGE_GATEWAY_URL=https://storage-gateway.internal
+DOVE_STORAGE_GATEWAY_API_KEY=<secret injecté>
+DOVE_STORAGE_MAX_UPLOAD_BYTES=536870912
+```
+
+Ne mettre aucun secret dans Git, l'image Angular ou `runtime-config.json`. Les secrets backend
+doivent venir du gestionnaire de secrets de la plateforme.
+
+Construction et lancement :
 
 ```bash
-java -jar target/*.jar
+./mvnw -Pprod clean verify
+java -jar target/dove-backend-*.jar --spring.profiles.active=prod
 ```
 
-Refer to [Using JHipster in production][] for more details.
+Liquibase applique les migrations au démarrage. Avant exposition publique, placer l'API derrière
+le reverse proxy Sonatel avec TLS, limites de taille et de débit, observabilité, sauvegardes
+PostgreSQL testées et accès réseau privé à la passerelle de stockage.
 
-### Packaging as war
+## Documentation
 
-To package your application as a war in order to deploy it to an application server, run:
+- [Authentification Keycloak et rôles DOVE](docs/AUTHENTICATION.md)
+- [Contrat complet de l'API v1](docs/API.md)
+- [Stockage local et passerelle cloud](docs/STORAGE.md)
+- [Configuration de production](src/main/resources/config/application-prod.yml)
+- [Migration Liquibase DOVE](src/main/resources/config/liquibase/changelog/20260822160000_added_dove_api_resources.xml)
 
-```bash
-./mvnw -Pprod,war clean verify
+## Structure ajoutée pour DOVE
+
+```text
+src/main/java/sn/dove/backend/dove/
+├── config/       configuration, profil et import initial
+├── domain/       document persistant versionné
+├── repository/   accès PostgreSQL/H2
+├── security/     utilisateur courant, permissions et périmètres
+├── service/      magasin transactionnel, audit et notifications
+├── storage/      contrat local/cloud
+└── web/          contrôleurs REST /api/v1
 ```
 
-### JHipster Control Center
-
-JHipster Control Center can help you manage and control your application(s). You can start a local control center server (accessible on http://localhost:7419) with:
-
-```bash
-docker compose -f src/main/docker/jhipster-control-center.yml up
-```
-
-## Testing
-
-### Spring Boot tests
-
-To launch your application's tests, run:
-
-```bash
-./mvnw verify
-```
-
-## Others
-
-### Code quality using Sonar
-
-Sonar is used to analyse code quality. You can start a local Sonar server (accessible on http://localhost:9001) with:
-
-```bash
-docker compose -f src/main/docker/sonar.yml up -d
-```
-
-Note: we have turned off forced authentication redirect for UI in [src/main/docker/sonar.yml](src/main/docker/sonar.yml) for out of the box experience while trying out SonarQube, for real use cases turn it back on.
-
-You can run a Sonar analysis with using the [sonar-scanner](https://docs.sonarqube.org/display/SCAN/Analyzing+with+SonarQube+Scanner) or by using the maven plugin.
-
-Then, run a Sonar analysis:
-
-```bash
-./mvnw -Pprod clean verify sonar:sonar -Dsonar.login=admin -Dsonar.password=admin
-```
-
-If you need to re-run the Sonar phase, please be sure to specify at least the `initialize` phase since Sonar properties are loaded from the sonar-project.properties file.
-
-```bash
-./mvnw initialize sonar:sonar -Dsonar.login=admin -Dsonar.password=admin
-```
-
-Additionally, Instead of passing `sonar.password` and `sonar.login` as CLI arguments, these parameters can be configured from [sonar-project.properties](sonar-project.properties) as shown below:
-
-```bash
-sonar.login=admin
-sonar.password=admin
-```
-
-For more information, refer to the [Code quality page][].
-
-### Docker Compose support
-
-JHipster generates a number of Docker Compose configuration files in the [src/main/docker/](src/main/docker/) folder to launch required third party services.
-
-For example, to start required services in Docker containers, run:
-
-```bash
-docker compose -f src/main/docker/services.yml up -d
-```
-
-To stop and remove the containers, run:
-
-```bash
-docker compose -f src/main/docker/services.yml down
-```
-
-[Spring Docker Compose Integration](https://docs.spring.io/spring-boot/reference/features/dev-services.html) is enabled by default. It's possible to disable it in `application.yml`:
-
-```yaml
-spring:
-  ...
-  docker:
-    compose:
-      enabled: false
-```
-
-You can also fully dockerize your application and all the services that it depends on.
-To achieve this, first build a Docker image of your app by running:
-
-```bash
-npm run java:docker
-```
-
-Or build an arm64 Docker image when using an arm64 processor OS, i.e., Apple Silicon chips (M*), running:
-
-```bash
-npm run java:docker:arm64
-```
-
-Then run:
-
-```bash
-docker compose -f src/main/docker/app.yml up -d
-```
-
-For more information refer to [Docker and Docker-Compose](https://www.jhipster.tech/documentation-archive/v9.2.0/docker-compose/), this page also contains information on the Docker Compose sub-generator (`jhipster docker-compose`), which is able to generate Docker configurations for one or several JHipster applications.
-
-## Continuous Integration (optional)
-
-To configure CI for your project, run the ci-cd sub-generator (`jhipster ci-cd`), this will let you generate configuration files for a number of Continuous Integration systems. Consult the [Setting up Continuous Integration](https://www.jhipster.tech/documentation-archive/v9.2.0/setting-up-ci/) page for more information.
-
-## References
-
-- [JHipster Homepage and latest documentation](https://www.jhipster.tech/)
-- [JHipster 9.2.0 archive](https://www.jhipster.tech/documentation-archive/v9.2.0)
-- [Using JHipster in development](https://www.jhipster.tech/documentation-archive/v9.2.0/development/)
-- [Using Docker and Docker-Compose](https://www.jhipster.tech/documentation-archive/v9.2.0/docker-compose)
-- [Using JHipster in production](https://www.jhipster.tech/documentation-archive/v9.2.0/production/)
-- [Running tests page](https://www.jhipster.tech/documentation-archive/v9.2.0/running-tests/)
-- [Code quality page](https://www.jhipster.tech/documentation-archive/v9.2.0/code-quality/)
-- [Setting up Continuous Integration](https://www.jhipster.tech/documentation-archive/v9.2.0/setting-up-ci/)
-- [Node.js](https://nodejs.org/)
-- [NPM](https://www.npmjs.com/)
+Le schéma `dove_resource` permet de raccorder immédiatement tout le frontend avec des documents
+JSON versionnés. Pour une montée en charge importante, les agrégats les plus sollicités pourront
+être normalisés progressivement derrière le même contrat `/api/v1`, sans réintroduire un stockage
+client ni changer les écrans Angular.

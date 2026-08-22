@@ -178,4 +178,6 @@ public class FeedBack implements Serializable {
             ", statutTraitement='" + getStatutTraitement() + "'" +
             "}";
     }
+
+
 }

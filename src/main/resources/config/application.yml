@@ -144,12 +144,6 @@ spring:
   mvc:
     problemdetails:
       enabled: true
-  security:
-    oauth2:
-      client:
-        registration:
-          oidc:
-            scope: openid, profile
   task:
     execution:
       thread-name-prefix: dove-backend-task-

@@ -141,6 +141,8 @@ public class Media implements Serializable {
         return getId() != null && getId().equals(((Media) o).getId());
     }
 
+
+
     @Override
     public int hashCode() {
         // see https://vladmihalcea.com/how-to-implement-equals-and-hashcode-using-the-jpa-entity-identifier/
