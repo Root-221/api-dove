@@ -182,6 +182,13 @@ public class ContentResourceV1 {
         normalizeFormats(value);
         ObjectNode created = api.store.create("contenus", value);
         api.events.audit(user.path("id").asText(), "CREATE_CONTENT", created.path("id").asText(), "SUCCESS");
+        notifyOwnerIfDifferent(
+            user,
+            created,
+            "Nouveau contenu",
+            "Le contenu « " + created.path("title").asText() + " » vous a été attribué.",
+            "/manage/contents"
+        );
         return created;
     }
 
@@ -210,6 +217,13 @@ public class ContentResourceV1 {
         normalizeFormats(value);
         ObjectNode updated = api.store.replace("contenus", id, value).orElseThrow(() -> api.notFound("content"));
         api.events.audit(user.path("id").asText(), "UPDATE_CONTENT", id, "SUCCESS");
+        notifyOwnerIfDifferent(
+            user,
+            updated,
+            "Contenu modifié",
+            "Le contenu « " + updated.path("title").asText() + " » a été mis à jour.",
+            "/manage/contents"
+        );
         return updated;
     }
 
@@ -226,6 +240,13 @@ public class ContentResourceV1 {
         patch.put("updatedAt", Instant.now().toString());
         ObjectNode updated = api.store.patch("contenus", id, patch).orElseThrow(() -> api.notFound("content"));
         api.events.audit(user.path("id").asText(), "PATCH_CONTENT", id, "SUCCESS");
+        notifyOwnerIfDifferent(
+            user,
+            updated,
+            "Contenu modifié",
+            "Le contenu « " + updated.path("title").asText() + " » a été mis à jour.",
+            "/manage/contents"
+        );
         return updated;
     }
 
@@ -265,6 +286,9 @@ public class ContentResourceV1 {
         String ownerId = content.path("ownerId").asText();
         if (!ownerId.isBlank() && !ownerId.equals(user.path("id").asText())) {
             api.events.notification(ownerId, "WORKFLOW", "Statut du contenu mis à jour", "Le contenu « " + content.path("title").asText() + " » est maintenant " + target + ".", "/manage/contents");
+        }
+        if ("PUBLIER".equals(target)) {
+            notifyRelevantUsersOfPublication(user.path("id").asText(), updated);
         }
         return updated;
     }
@@ -310,6 +334,32 @@ public class ContentResourceV1 {
         }
         boolean explicitCross = browseOtherBusinessJobs || requestedJobs.contains(content.path("businessJobId").asText());
         return api.users.canReadContent(user, content, explicitCross);
+    }
+
+    private void notifyOwnerIfDifferent(ObjectNode actor, ObjectNode content, String title, String message, String route) {
+        String ownerId = content.path("ownerId").asText();
+        if (!ownerId.isBlank() && !ownerId.equals(actor.path("id").asText())) {
+            api.events.notification(ownerId, "WORKFLOW", title, message, route);
+        }
+    }
+
+    private void notifyRelevantUsersOfPublication(String actorId, ObjectNode content) {
+        api
+            .store
+            .list("utilisateurs")
+            .stream()
+            .filter(user -> "ACTIVE".equals(user.path("status").asText()))
+            .filter(user -> !actorId.equals(user.path("id").asText()))
+            .filter(user -> api.users.isInMutationScope(user, content) || api.users.isGlobal(user))
+            .forEach(user ->
+                api.events.notification(
+                    user.path("id").asText(),
+                    "WORKFLOW",
+                    "Nouveau contenu publié",
+                    "« " + content.path("title").asText() + " » est maintenant disponible.",
+                    "/app/content/" + content.path("id").asText()
+                )
+            );
     }
 
     private boolean matchesVisibility(ObjectNode user, ObjectNode content, List<String> requestedStatuses) {

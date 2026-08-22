@@ -4,6 +4,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,6 +19,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/v1")
 public class FeedbackResourceV1 {
+
+    private static final Set<String> REPORT_REASONS = Set.of("INCORRECT", "OUTDATED", "INCOMPLETE", "OTHER");
 
     private final DoveApiSupport api;
 
@@ -53,26 +56,42 @@ public class FeedbackResourceV1 {
         if (!api.users.canReadContent(user, content, true)) {
             throw api.notFound("content");
         }
+        String kind = input.path("kind").asText(input.path("comment").asText().isBlank() ? "SATISFACTION" : "COMMENT");
+        boolean report = "OBSOLESCENCE".equals(kind);
+        if (report) {
+            if (!"NANDITE".equals(user.path("role").asText())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a Nandite can report content");
+            }
+            String reason = api.requireText(input, "reason");
+            if (!REPORT_REASONS.contains(reason)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid report reason");
+            }
+        }
+        if (input.path("comment").asText("").length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Comment must not exceed 500 characters");
+        }
         ObjectNode feedback = api.newDocument(input);
         String now = Instant.now().toString();
         feedback.put("id", UUID.randomUUID().toString());
         feedback.put("userId", user.path("id").asText());
-        feedback.put("kind", input.path("kind").asText(input.path("comment").asText().isBlank() ? "SATISFACTION" : "COMMENT"));
+        feedback.put("kind", kind);
+        if (report) {
+            feedback.put("helpful", false);
+        }
         feedback.put("status", "NEW");
         feedback.put("createdAt", now);
         if (!content.path("ownerId").asText().isBlank()) {
             feedback.put("assigneeId", content.path("ownerId").asText());
         }
         ObjectNode created = api.store.create("feedBacks", feedback);
-        boolean obsolete = "OBSOLESCENCE".equals(feedback.path("kind").asText()) || "OUTDATED".equals(feedback.path("reason").asText());
-        if (obsolete) {
+        if (report) {
             ObjectNode contentPatch = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
             contentPatch.put("status", "A_REVISER");
             contentPatch.put("updatedAt", now);
             api.store.patch("contenus", contentId, contentPatch);
-            api.events.notification(content.path("ownerId").asText(), "FEEDBACK", "Obsolescence signalée", "Le contenu « " + content.path("title").asText() + " » doit être revu.", "/manage/contents");
+            api.events.notification(content.path("ownerId").asText(), "FEEDBACK", "Contenu signalé", "Le contenu « " + content.path("title").asText() + " » doit être revu.", "/manage/reports");
         }
-        api.events.audit(user.path("id").asText(), "SUBMIT_FEEDBACK", created.path("id").asText(), "SUCCESS");
+        api.events.audit(user.path("id").asText(), report ? "REPORT_CONTENT" : "SUBMIT_FEEDBACK", created.path("id").asText(), "SUCCESS");
         return created;
     }
 

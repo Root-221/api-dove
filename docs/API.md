@@ -227,7 +227,9 @@ cloud ; le token Keycloak ne doit pas être envoyé à ce domaine.
 | POST    | `/feedback/{id}/resolve`             | `MANAGE_FEEDBACK` |
 | GET     | `/me/notifications?unreadOnly=false` | authentifié       |
 | PATCH   | `/me/notifications/{id}/read`        | propriétaire      |
+| DELETE  | `/me/notifications/{id}`             | propriétaire      |
 | POST    | `/me/notifications/mark-all-read`    | authentifié       |
+| DELETE  | `/me/notifications/read`             | authentifié       |
 
 Progression :
 
@@ -239,8 +241,9 @@ Progression :
 ```
 
 La progression ne diminue pas et passe à `completed=true` à 100 %. Un feedback exige
-`contentId`; il peut porter `kind`, `rating`, `reason` et `comment`. Un signalement d'obsolescence
-place automatiquement le contenu en `A_REVISER` et notifie son propriétaire.
+`contentId`; il peut porter `kind`, `rating`, `reason` et `comment`. Un Nandité signale un contenu
+avec `kind=OBSOLESCENCE` et un motif parmi `INCORRECT`, `OUTDATED`, `INCOMPLETE` ou `OTHER`.
+Le signalement place automatiquement le contenu en `A_REVISER` et notifie son propriétaire.
 
 ## Nandité et communauté
 
@@ -259,10 +262,25 @@ place automatiquement le contenu en `A_REVISER` et notifie son propriétaire.
 | PUT/DELETE | `/community/posts/{id}/like`     | `CONTRIBUTE`                |
 | PUT/DELETE | `/community/posts/{id}/saved`    | `CONTRIBUTE`                |
 | POST       | `/community/posts/{id}/comments` | `CONTRIBUTE`                |
+| POST       | `/community/posts/{id}/reports` | `CONTRIBUTE`                |
+| POST       | `/community/posts/{id}/comments/{commentId}/reports` | `CONTRIBUTE` |
+| GET        | `/me/community-reports` | `CONTRIBUTE` |
+| GET        | `/community/reports` | `MANAGE_FEEDBACK` |
+| POST       | `/community/reports/{id}/start-processing` | `MANAGE_FEEDBACK` |
+| POST       | `/community/reports/{id}/resolve` | `MANAGE_FEEDBACK` |
 
 Une proposition exige `title`, `situation`, `treatment`, `applicationId`, `businessJobId` et
 `moduleId`. Elle suit `SUBMITTED → UNDER_REVIEW → CONVERTED|REJECTED`. L'acceptation crée dans la
 même transaction un contenu `FICHEPRATIQUE` en brouillon. Le refus exige `{ "reason": "…" }`.
+
+Une discussion ou un commentaire peut être signalé avec un motif parmi `SPAM`, `OFFENSIVE`,
+`INAPPROPRIATE`, `MISINFORMATION` ou `OTHER`, et un commentaire facultatif limité à 500
+caractères. Un utilisateur ne peut pas signaler son propre message ni créer deux signalements
+ouverts sur la même cible. User Enablement traite ces remontées dans la file des signalements.
+
+Le backend crée également des notifications lors d’une nouvelle publication communautaire,
+d’une réponse, d’une réaction qui concerne l’auteur, d’un nouveau contenu attribué ou publié,
+d’un changement de workflow, d’une proposition, d’un signalement et d’une modification d’accès.
 
 ## Analytics
 

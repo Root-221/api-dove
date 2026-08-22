@@ -62,6 +62,13 @@ public class AdminUserResourceV1 {
         }
         ObjectNode created = api.store.create("utilisateurs", user);
         api.events.audit(api.currentUserId(), "CREATE_USER", created.path("id").asText(), "SUCCESS");
+        api.events.notification(
+            created.path("id").asText(),
+            "SYSTEM",
+            "Compte DOVE créé",
+            "Votre accès DOVE a été créé avec le rôle " + created.path("role").asText() + ".",
+            "/app/profile"
+        );
         return created;
     }
 
@@ -70,6 +77,7 @@ public class AdminUserResourceV1 {
         protectLastAdmin(id, input);
         ObjectNode updated = api.store.patch("utilisateurs", id, input).orElseThrow(() -> api.notFound("user"));
         api.events.audit(api.currentUserId(), "UPDATE_USER", id, "SUCCESS");
+        notifyUserUpdate(id, "Votre profil DOVE a été modifié par un administrateur.");
         return updated;
     }
 
@@ -97,6 +105,7 @@ public class AdminUserResourceV1 {
         ObjectNode updated = api.store.patch("utilisateurs", id, patch).orElseThrow(() -> api.notFound("user"));
         cascadeValidator(id, updated.path("contentValidatorId").asText());
         api.events.audit(api.currentUserId(), "UPDATE_USER_ACCESS", id, "SUCCESS");
+        notifyUserUpdate(id, "Votre rôle, votre statut ou votre périmètre DOVE a été mis à jour.");
         return updated;
     }
 
@@ -141,5 +150,11 @@ public class AdminUserResourceV1 {
             .filter(content -> ownerId.equals(content.path("ownerId").asText()))
             .filter(content -> List.of("BROUILLON", "EN_ATTENTE_VALIDATION").contains(content.path("status").asText()))
             .forEach(content -> api.store.patch("contenus", content.path("id").asText(), patch));
+    }
+
+    private void notifyUserUpdate(String userId, String message) {
+        if (!api.currentUserId().equals(userId)) {
+            api.events.notification(userId, "SYSTEM", "Accès DOVE mis à jour", message, "/app/profile");
+        }
     }
 }
