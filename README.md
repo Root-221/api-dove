@@ -3,6 +3,7 @@
 This application was generated using JHipster 9.2.0, you can find documentation and help at [https://www.jhipster.tech/documentation-archive/v9.2.0](https://www.jhipster.tech/documentation-archive/v9.2.0).
 
 > 💡 **Guide de Test rapide et Endpoints complets :** Retrouvez la documentation détaillée des routes et tests dans [README_TEST_BACKEND.md](README_TEST_BACKEND.md).
+> 💡 **Guide de Création d'un nouvel Endpoint pas-à-pas :** Apprenez à concevoir et ajouter un nouvel endpoint de bout en bout en lisant [README_CREATION_ENDPOINT.md](README_CREATION_ENDPOINT.md).
 
 ### 🚀 Liens Utiles pour Tester le Backend en local
 
