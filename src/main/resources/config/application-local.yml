@@ -1,0 +1,59 @@
+spring:
+  devtools:
+    restart:
+      enabled: false
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:h2:file:./.dove-local/database;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: dove
+    password: dove
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+  liquibase:
+    enabled: false
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+server:
+  port: 8080
+
+jhipster:
+  cors:
+    allowed-origins: 'http://localhost:4200'
+    allowed-methods: '*'
+    allowed-headers: '*'
+    exposed-headers: 'Authorization,Link,X-Total-Count,X-Dove-Total-Count,X-Dove-Page,X-Dove-Page-Size'
+    allow-credentials: true
+    max-age: 1800
+  security:
+    oauth2:
+      audience:
+        - account
+
+dove:
+  seed:
+    enabled: true
+    location: file:../DoveFront/db.json
+  auth:
+    dev-header-enabled: true
+    default-user-id: 85006628-0dd6-5586-a35c-b1cb40b9de1f
+  storage:
+    provider: local
+    local-directory: .dove-storage
+    public-base-url: http://localhost:8080
+    max-upload-bytes: 536870912
+
+logging:
+  level:
+    ROOT: INFO
+    org.hibernate.SQL: WARN
+    sn.dove.backend: INFO

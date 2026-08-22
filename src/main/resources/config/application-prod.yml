@@ -33,13 +33,20 @@ spring:
       enabled: false
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://localhost:5432/doveBackend
+    url: ${DOVE_DATABASE_URL:jdbc:postgresql://localhost:5432/doveBackend}
+    username: ${DOVE_DATABASE_USERNAME:doveBackend}
+    password: ${DOVE_DATABASE_PASSWORD:}
     hikari:
       poolName: Hikari
       auto-commit: false
   # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
     contexts: prod
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${DOVE_KEYCLOAK_ISSUER_URI}
   thymeleaf:
     cache: true
 
@@ -77,6 +84,17 @@ server:
 # ===================================================================
 
 jhipster:
+  cors:
+    allowed-origins: ${DOVE_ALLOWED_ORIGINS:https://dove.sonatel.sn}
+    allowed-methods: '*'
+    allowed-headers: '*'
+    exposed-headers: 'Authorization,Link,X-Total-Count,X-Dove-Total-Count,X-Dove-Page,X-Dove-Page-Size'
+    allow-credentials: true
+    max-age: 1800
+  security:
+    oauth2:
+      audience:
+        - ${DOVE_KEYCLOAK_AUDIENCE:dove-api}
   http:
     cache: # Used by the CachingHttpHeadersFilter
       timeToLiveInDays: 1461
@@ -101,3 +119,14 @@ jhipster:
 # ===================================================================
 
 # application:
+dove:
+  seed:
+    enabled: false
+  auth:
+    dev-header-enabled: false
+    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
+  storage:
+    provider: ${DOVE_STORAGE_PROVIDER:gateway}
+    gateway-base-url: ${DOVE_STORAGE_GATEWAY_URL:}
+    gateway-api-key: ${DOVE_STORAGE_GATEWAY_API_KEY:}
+    max-upload-bytes: ${DOVE_STORAGE_MAX_UPLOAD_BYTES:536870912}
