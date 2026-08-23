@@ -20,7 +20,7 @@ public class OpenApiConfiguration {
 
     private static final String SCHEME_NAME = "oauth2";
 
-    @Value("${spring.security.oauth2.client.provider.oidc.issuer-uri}")
+    @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:http://localhost:9080/realms/jhipster}")
     private String issuerUri;
 
     @Bean
