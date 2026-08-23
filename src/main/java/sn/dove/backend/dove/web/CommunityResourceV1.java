@@ -32,10 +32,13 @@ public class CommunityResourceV1 {
         this.api = api;
     }
 
+    /** Bound applied to the community feed: most-recent-first, matches the pattern already used for notifications/audit. */
+    private static final int MAX_LISTED_POSTS = 200;
+
     @GetMapping
     @PreAuthorize("@doveAuthorization.has('CONTRIBUTE')")
     public List<ObjectNode> list() {
-        return api.store.list("discussions");
+        return api.store.listRecent("discussions", MAX_LISTED_POSTS);
     }
 
     @GetMapping("/{id}")

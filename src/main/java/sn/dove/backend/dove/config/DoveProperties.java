@@ -68,6 +68,10 @@ public class DoveProperties {
 
     public static class Storage {
 
+        // "local" is intentionally the fallback here and in application-prod.yml: the
+        // Sonatel object-storage gateway isn't confirmed live yet, and the gateway
+        // implementation refuses to start without DOVE_STORAGE_GATEWAY_URL. Local storage
+        // is a temporary measure until that dependency is ready - see application-prod.yml.
         private String provider = "local";
         private Path localDirectory = Path.of(".dove-storage");
         private String gatewayBaseUrl;

@@ -2,7 +2,6 @@ package sn.dove.backend.dove.web;
 
 import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
-import java.util.Comparator;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/me/notifications")
 public class NotificationResourceV1 {
 
+    /**
+     * A user's notification bell has no legitimate need to render more than this many items at
+     * once; older ones are still reachable by mark-all-read/delete-read. Bounded and pushed to
+     * SQL (ORDER BY created_at DESC LIMIT) instead of loading every notification in the system
+     * and filtering/sorting in Java - see DoveResourceStore.listRecentForUser.
+     */
+    private static final int MAX_NOTIFICATIONS = 200;
+
     private final DoveApiSupport api;
 
     public NotificationResourceV1(DoveApiSupport api) {
@@ -28,11 +35,9 @@ public class NotificationResourceV1 {
         String userId = api.currentUserId();
         return api
             .store
-            .list("notifications")
+            .listRecentForUser("notifications", userId, MAX_NOTIFICATIONS)
             .stream()
-            .filter(notification -> userId.equals(notification.path("userId").asText()))
             .filter(notification -> !unreadOnly || !notification.path("read").asBoolean(false))
-            .sorted(Comparator.comparing(notification -> notification.path("createdAt").asText(), Comparator.reverseOrder()))
             .toList();
     }
 

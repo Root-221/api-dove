@@ -39,6 +39,14 @@ spring:
     hikari:
       poolName: Hikari
       auto-commit: false
+      # Sized for a pooled Neon Postgres endpoint serving ~4000 users/day from a small
+      # number (1-3) of backend instances. Kept modest per-instance because the real
+      # ceiling is Neon's plan-level max connections, shared across every instance and
+      # any other client of the same project - we don't have visibility into that number
+      # here, so these are conservative defaults, not a tuned figure. Revisit if the
+      # instance count grows or if pool-exhaustion errors show up in logs/metrics.
+      maximum-pool-size: 12
+      minimum-idle: 3
   # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
     contexts: prod
@@ -126,7 +134,18 @@ dove:
     dev-header-enabled: false
     web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
   storage:
-    provider: ${DOVE_STORAGE_PROVIDER:gateway}
+    # TEMPORARY: defaults to local disk storage. The Sonatel object-storage gateway
+    # (DOVE_STORAGE_GATEWAY_URL) is not confirmed live yet, and GatewayObjectStorageService
+    # refuses to start (IllegalStateException) if that URL is blank - so "gateway" is not a
+    # safe default here. Local storage works but is NOT suitable for multi-instance
+    # deployment (files land on one instance's disk only). Switch this back to "gateway"
+    # once the real endpoint is confirmed live and reachable from prod, then remove this note.
+    provider: ${DOVE_STORAGE_PROVIDER:local}
     gateway-base-url: ${DOVE_STORAGE_GATEWAY_URL:}
     gateway-api-key: ${DOVE_STORAGE_GATEWAY_API_KEY:}
+    # Only used while provider=local. Not set previously, which meant local storage (if
+    # ever active) would silently fall back to the http://localhost:8080 Java default and
+    # generate broken media URLs for real users - these make it configurable via env vars.
+    local-directory: ${DOVE_STORAGE_LOCAL_DIRECTORY:.dove-storage}
+    public-base-url: ${DOVE_STORAGE_PUBLIC_BASE_URL:http://localhost:8080}
     max-upload-bytes: ${DOVE_STORAGE_MAX_UPLOAD_BYTES:536870912}
