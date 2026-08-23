@@ -1,8 +1,11 @@
 package sn.dove.backend.dove.security;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -19,8 +22,26 @@ import sn.dove.backend.dove.service.DoveResourceStore;
 @Service
 public class DoveCurrentUserService {
 
+    private static final String USERS = "utilisateurs";
+
     private final DoveResourceStore store;
     private final DoveProperties properties;
+
+    /**
+     * Short-lived cache from JWT subject to the resolved (pre-permission) user document.
+     * requireUser() is called on every authenticated request, so even the indexed DB lookup
+     * adds up at volume; a short TTL keeps role/status changes visible quickly (well under
+     * typical access-token lifetimes) while avoiding a DB round trip on most requests. Only
+     * positive lookups are cached (Caffeine's Cache#get skips caching a null mapping result),
+     * so an unprovisioned subject never produces a stale "not found" for a user who was
+     * provisioned moments later. The cached node is only ever read (requireActive) and
+     * deep-copied (withPermissions) before being handed to a caller, never mutated in place, so
+     * sharing the same cached instance across requests is safe.
+     */
+    private final Cache<String, ObjectNode> userBySubject = Caffeine.newBuilder()
+        .expireAfterWrite(Duration.ofSeconds(30))
+        .maximumSize(2_000)
+        .build();
 
     public DoveCurrentUserService(DoveResourceStore store, DoveProperties properties) {
         this.store = store;
@@ -41,18 +62,19 @@ public class DoveCurrentUserService {
             if (subject == null || subject.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The access token has no stable subject");
             }
-            return store
-                .list("utilisateurs")
-                .stream()
-                .filter(user -> subject.equals(user.path("externalSubject").asText()))
-                .findFirst()
-                .map(this::requireActive)
-                .map(this::withPermissions)
-                .orElseThrow(() ->
-                    new ResponseStatusException(HttpStatus.FORBIDDEN, "The authenticated identity is not provisioned in DOVE")
-                );
+            ObjectNode source = userBySubject.get(subject, key -> store.findByExternalSubject(USERS, key).orElse(null));
+            if (source == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The authenticated identity is not provisioned in DOVE");
+            }
+            return withPermissions(requireActive(source));
         }
 
+        // Dev-header path only: matches against id/externalSubject/login/email case-insensitively,
+        // which doesn't map cleanly onto the indexed exact-match lookups above. This branch only
+        // runs when dove.auth.dev-header-enabled=true, which DoveDevAuthenticationFilter now
+        // refuses to allow together with the "prod" profile, and local/dev datasets are tiny, so
+        // the full scan here is intentionally left as-is rather than risking a behavior change to
+        // the case-insensitive matching semantics for a path that never runs in production.
         Set<String> candidates = new LinkedHashSet<>();
         candidates.add(authentication.getName());
         if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
@@ -61,7 +83,7 @@ public class DoveCurrentUserService {
             add(candidates, jwtAuthentication.getToken().getClaimAsString("email"));
         }
         return store
-            .list("utilisateurs")
+            .list(USERS)
             .stream()
             .filter(user -> matches(user, candidates))
             .findFirst()

@@ -29,6 +29,17 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1")
 public class ContentResourceV1 {
 
+    /**
+     * Safety-net cap for canonicalContents(), not a functional page size. The dedup/filter/sort
+     * logic below genuinely needs every "contenus" row to be correct (it groups by title +
+     * functional context and keeps the richest one, then paginates the filtered result), so this
+     * is deliberately set far above any realistic table size rather than a tight bound - it only
+     * exists to stop unbounded memory growth in a pathological case. Pushing the WHERE-clause
+     * filtering itself into SQL (so only matching rows are loaded at all) would need a schema/
+     * indexing change for each filterable JSON field; left as a follow-up, not attempted here.
+     */
+    private static final int CONTENT_LISTING_SAFETY_CAP = 5_000;
+
     private static final List<String> PUBLIC_STATUSES = List.of("PUBLIER", "A_REVISER");
     private static final Set<String> FORMATS = Set.of("VIDEO", "FICHEPRATIQUE", "FAQ");
     private static final Map<String, List<String>> TRANSITIONS = Map.of(
@@ -391,7 +402,7 @@ public class ContentResourceV1 {
      */
     private List<ObjectNode> canonicalContents() {
         Map<String, ObjectNode> canonical = new LinkedHashMap<>();
-        for (ObjectNode content : api.store.list("contenus")) {
+        for (ObjectNode content : api.store.list("contenus", CONTENT_LISTING_SAFETY_CAP)) {
             String key = DoveApiSupport.normalize(content.path("title").asText()) +
             "|" +
             content.path("applicationId").asText() +

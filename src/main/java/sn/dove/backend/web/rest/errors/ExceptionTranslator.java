@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -215,6 +216,11 @@ public class ExceptionTranslator extends ResponseEntityExceptionHandler {
         if (err instanceof ConcurrencyFailureException) return HttpStatus.CONFLICT;
         if (err instanceof BadCredentialsException) return HttpStatus.UNAUTHORIZED;
         if (err instanceof ConstraintViolationException) return HttpStatus.BAD_REQUEST;
+        // A unique-constraint race (two concurrent creates for the same resource) or an
+        // explicit duplicate detected by DoveResourceStore.create(); both mean "this already
+        // exists", not a generic server error.
+        if (err instanceof DataIntegrityViolationException) return HttpStatus.CONFLICT;
+        if (err instanceof sn.dove.backend.dove.service.DuplicateResourceException) return HttpStatus.CONFLICT;
         return null;
     }
 

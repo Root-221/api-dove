@@ -13,6 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("@doveAuthorization.has('VIEW_AUDIT')")
 public class AdminAuditResourceV1 {
 
+    /**
+     * The audit log has no upper bound in practice; cap the default view to the most recent
+     * events, pushed to SQL (ORDER BY created_at DESC LIMIT) instead of loading the entire
+     * table into memory on every request. See DoveResourceStore.listRecent.
+     */
+    private static final int MAX_AUDIT_EVENTS = 300;
+
     private final DoveApiSupport api;
 
     public AdminAuditResourceV1(DoveApiSupport api) {
@@ -21,7 +28,7 @@ public class AdminAuditResourceV1 {
 
     @GetMapping
     public List<ObjectNode> list() {
-        return api.store.list("auditEvents");
+        return api.store.listRecent("auditEvents", MAX_AUDIT_EVENTS);
     }
 
     @GetMapping("/{id}")

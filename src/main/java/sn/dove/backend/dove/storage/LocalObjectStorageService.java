@@ -9,6 +9,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -19,6 +21,8 @@ import sn.dove.backend.dove.config.DoveProperties;
 @ConditionalOnProperty(name = "dove.storage.provider", havingValue = "local", matchIfMissing = true)
 public class LocalObjectStorageService implements ObjectStorageService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(LocalObjectStorageService.class);
+
     private final Path root;
     private final String publicBaseUrl;
 
@@ -26,6 +30,10 @@ public class LocalObjectStorageService implements ObjectStorageService {
         this.root = properties.getStorage().getLocalDirectory().toAbsolutePath().normalize();
         this.publicBaseUrl = properties.getStorage().getPublicBaseUrl().replaceAll("/+$", "");
         Files.createDirectories(root);
+        LOG.warn(
+            "Using local file storage at {} - not suitable for multi-instance deployment, switch to gateway storage before scaling horizontally.",
+            root
+        );
     }
 
     @Override

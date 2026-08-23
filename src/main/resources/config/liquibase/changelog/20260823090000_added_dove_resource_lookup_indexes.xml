@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!--
+        Supports DoveCurrentUserService resolving the authenticated caller (Keycloak JWT
+        subject) without listing every "utilisateurs" row on every request. "externalSubject"
+        is a payload JSON field distinct from the dove_resource.external_id column (which holds
+        the resource's own business id, not the auth-provider subject), so it can't reuse the
+        existing ux_dove_resource_type_external unique constraint. A partial functional index on
+        the payload avoids duplicating the value into a separate column, which would need a
+        backfill for already-persisted rows and risk drifting out of sync with the payload.
+    -->
+    <changeSet id="20260823090000-1" author="dove">
+        <sql>
+            CREATE INDEX ix_dove_resource_external_subject
+                ON dove_resource (resource_type, (payload::jsonb ->> 'externalSubject'))
+                WHERE resource_type = 'utilisateurs';
+        </sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS ix_dove_resource_external_subject;</sql>
+        </rollback>
+    </changeSet>
+
+    <!--
+        Supports NotificationResourceV1 fetching a bounded, most-recent-first page of a single
+        user's notifications directly from SQL instead of listing every notification row and
+        filtering/sorting in Java.
+    -->
+    <changeSet id="20260823090000-2" author="dove">
+        <sql>
+            CREATE INDEX ix_dove_resource_notifications_user
+                ON dove_resource (resource_type, (payload::jsonb ->> 'userId'), created_at DESC)
+                WHERE resource_type = 'notifications';
+        </sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS ix_dove_resource_notifications_user;</sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>
