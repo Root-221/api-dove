@@ -1,8 +1,5 @@
 package sn.dove.backend.dove.web;
 
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +21,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -166,8 +166,7 @@ public class ContentResourceV1 {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Content is outside the mutation scope");
         }
         String normalizedTitle = DoveApiSupport.normalize(value.path("title").asText());
-        api
-            .store
+        api.store
             .list("contenus")
             .stream()
             .filter(existing -> api.users.isInMutationScope(user, existing))
@@ -275,9 +274,8 @@ public class ContentResourceV1 {
         }
         api.users.requirePermission(permissionForTransition(target));
         if ("VALIDER".equals(target)) {
-            String validatorId = content.path("validatorId").asText();
-            if (!validatorId.equals(user.path("id").asText()) || validatorId.equals(content.path("ownerId").asText())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the assigned independent validator can validate");
+            if (user.path("id").asText().equals(content.path("ownerId").asText())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A user cannot validate their own content");
             }
         }
         String now = Instant.now().toString();
@@ -296,7 +294,13 @@ public class ContentResourceV1 {
         api.events.audit(user.path("id").asText(), "CONTENT_" + target, id, "SUCCESS");
         String ownerId = content.path("ownerId").asText();
         if (!ownerId.isBlank() && !ownerId.equals(user.path("id").asText())) {
-            api.events.notification(ownerId, "WORKFLOW", "Statut du contenu mis à jour", "Le contenu « " + content.path("title").asText() + " » est maintenant " + target + ".", "/manage/contents");
+            api.events.notification(
+                ownerId,
+                "WORKFLOW",
+                "Statut du contenu mis à jour",
+                "Le contenu « " + content.path("title").asText() + " » est maintenant " + target + ".",
+                "/manage/contents"
+            );
         }
         if ("PUBLIER".equals(target)) {
             notifyRelevantUsersOfPublication(user.path("id").asText(), updated);
@@ -326,12 +330,12 @@ public class ContentResourceV1 {
     @PreAuthorize("@doveAuthorization.has('VALIDATE_CONTENT')")
     public List<ObjectNode> validationQueue() {
         ObjectNode user = api.currentUser();
-        return api
-            .store
+        return api.store
             .list("contenus")
             .stream()
             .filter(content -> "EN_ATTENTE_VALIDATION".equals(content.path("status").asText()))
-            .filter(content -> user.path("id").asText().equals(content.path("validatorId").asText()))
+            .filter(content -> api.users.isInMutationScope(user, content))
+            .filter(content -> !user.path("id").asText().equals(content.path("ownerId").asText()))
             .toList();
     }
 
@@ -355,8 +359,7 @@ public class ContentResourceV1 {
     }
 
     private void notifyRelevantUsersOfPublication(String actorId, ObjectNode content) {
-        api
-            .store
+        api.store
             .list("utilisateurs")
             .stream()
             .filter(user -> "ACTIVE".equals(user.path("status").asText()))
@@ -380,8 +383,10 @@ public class ContentResourceV1 {
         if (user.path("id").asText().equals(content.path("authorId").asText())) {
             return true;
         }
-        return PUBLIC_STATUSES.contains(content.path("status").asText()) &&
-        (requestedStatuses.isEmpty() || requestedStatuses.stream().allMatch(PUBLIC_STATUSES::contains));
+        return (
+            PUBLIC_STATUSES.contains(content.path("status").asText()) &&
+            (requestedStatuses.isEmpty() || requestedStatuses.stream().allMatch(PUBLIC_STATUSES::contains))
+        );
     }
 
     private static Comparator<ObjectNode> comparator(String sort) {
@@ -403,13 +408,14 @@ public class ContentResourceV1 {
     private List<ObjectNode> canonicalContents() {
         Map<String, ObjectNode> canonical = new LinkedHashMap<>();
         for (ObjectNode content : api.store.list("contenus", CONTENT_LISTING_SAFETY_CAP)) {
-            String key = DoveApiSupport.normalize(content.path("title").asText()) +
-            "|" +
-            content.path("applicationId").asText() +
-            "|" +
-            content.path("businessJobId").asText() +
-            "|" +
-            content.path("moduleId").asText();
+            String key =
+                DoveApiSupport.normalize(content.path("title").asText()) +
+                "|" +
+                content.path("applicationId").asText() +
+                "|" +
+                content.path("businessJobId").asText() +
+                "|" +
+                content.path("moduleId").asText();
             ObjectNode current = canonical.get(key);
             if (current == null || contentRichness(content) > contentRichness(current)) {
                 canonical.put(key, content);
@@ -419,11 +425,13 @@ public class ContentResourceV1 {
     }
 
     private static int contentRichness(ObjectNode content) {
-        return formats(content).size() * 100 +
-        content.path("videoItems").size() * 10 +
-        content.path("steps").size() * 10 +
-        content.path("faqItems").size() * 10 +
-        (content.path("description").asText().isBlank() ? 0 : 1);
+        return (
+            formats(content).size() * 100 +
+            content.path("videoItems").size() * 10 +
+            content.path("steps").size() * 10 +
+            content.path("faqItems").size() * 10 +
+            (content.path("description").asText().isBlank() ? 0 : 1)
+        );
     }
 
     private static boolean hasFormat(ObjectNode content, String format) {
@@ -494,7 +502,9 @@ public class ContentResourceV1 {
     }
 
     private static boolean sameContext(ObjectNode left, ObjectNode right) {
-        return List.of("applicationId", "businessJobId", "moduleId").stream().allMatch(field -> left.path(field).asText().equals(right.path(field).asText()));
+        return List.of("applicationId", "businessJobId", "moduleId")
+            .stream()
+            .allMatch(field -> left.path(field).asText().equals(right.path(field).asText()));
     }
 
     private static ObjectNode similarityItem(ObjectNode content, String normalizedTitle) {
@@ -507,7 +517,10 @@ public class ContentResourceV1 {
         ArrayNode existingFormats = result.putArray("formats");
         formats(content).forEach(existingFormats::add);
         ArrayNode missingFormats = result.putArray("missingFormats");
-        FORMATS.stream().filter(format -> !formats(content).contains(format)).sorted().forEach(missingFormats::add);
+        FORMATS.stream()
+            .filter(format -> !formats(content).contains(format))
+            .sorted()
+            .forEach(missingFormats::add);
         result.put("similarityScore", Math.round(score * 100.0) / 100.0);
         result.put("canEdit", true);
         return result;

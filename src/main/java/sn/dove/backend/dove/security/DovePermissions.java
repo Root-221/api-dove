@@ -20,7 +20,6 @@ public final class DovePermissions {
             "CREATE_CONTENT",
             "EDIT_CONTENT",
             "SUBMIT_CONTENT_FOR_VALIDATION",
-            "VALIDATE_CONTENT",
             "PUBLISH_CONTENT",
             "ARCHIVE_CONTENT",
             "VIEW_ANALYTICS"
