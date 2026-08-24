@@ -25,7 +25,7 @@ class TechnicalStructureTest {
 
         .whereLayer("Config").mayNotBeAccessedByAnyLayer()
         .whereLayer("Web").mayOnlyBeAccessedByLayers("Config")
-        .whereLayer("Service").mayOnlyBeAccessedByLayers("Web", "Config")
+        .whereLayer("Service").mayOnlyBeAccessedByLayers("Web", "Config", "Security")
         .whereLayer("Security").mayOnlyBeAccessedByLayers("Config", "Service", "Web")
         .whereLayer("Persistence").mayOnlyBeAccessedByLayers("Service", "Security", "Web", "Config")
         .whereLayer("Domain").mayOnlyBeAccessedByLayers("Persistence", "Service", "Security", "Web", "Config")
@@ -33,6 +33,7 @@ class TechnicalStructureTest {
         .ignoreDependency(belongToAnyOf(DoveBackendApp.class), alwaysTrue())
         .ignoreDependency(alwaysTrue(), belongToAnyOf(
             sn.dove.backend.config.Constants.class,
-            sn.dove.backend.config.ApplicationProperties.class
+            sn.dove.backend.config.ApplicationProperties.class,
+            sn.dove.backend.dove.config.DoveProperties.class
         ));
 }

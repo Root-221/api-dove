@@ -34,11 +34,15 @@ public class ReferenceResourceV1 {
     @GetMapping("/business-units")
     public List<ObjectNode> businessUnits() {
         ObjectNode user = api.currentUser();
-        if (api.users.isGlobal(user)) {
-            return api.store.list("businessUnits");
-        }
         JsonNode visibleIds = user.path("accessScope").path("businessUnitIds");
-        return api.store.list("businessUnits").stream().filter(unit -> contains(visibleIds, unit.path("id").asText())).toList();
+        boolean global = api.users.isGlobal(user);
+        return api
+            .store
+            .list("businessUnits")
+            .stream()
+            .filter(unit -> global || contains(visibleIds, unit.path("id").asText()))
+            .filter(unit -> !"ARCHIVED".equals(unit.path("status").asText()))
+            .toList();
     }
 
     @GetMapping("/business-jobs")
@@ -49,6 +53,7 @@ public class ReferenceResourceV1 {
             .list("metiers")
             .stream()
             .filter(job -> api.users.canSeeBusinessJob(user, job.path("id").asText(), availableForBrowsing))
+            .filter(job -> !"ARCHIVED".equals(job.path("status").asText()))
             .toList();
     }
 
@@ -68,6 +73,7 @@ public class ReferenceResourceV1 {
             .list("modules")
             .stream()
             .filter(module -> api.users.canSeeModule(user, module, browsing))
+            .filter(module -> !"ARCHIVED".equals(module.path("status").asText()))
             .filter(module -> DoveApiSupport.equalsText(module, "applicationId", applicationId))
             .filter(module -> businessJobId == null || businessJobId.isBlank() || contains(module.path("businessJobIds"), businessJobId))
             .filter(module -> query.isBlank() || DoveApiSupport.normalize(module.path("name").asText()).contains(query))
