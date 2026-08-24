@@ -51,6 +51,7 @@ public class AdminReferenceResourceV1 {
 
     @PostMapping("/{type}")
     public ObjectNode create(@PathVariable String type, @RequestBody JsonNode input) {
+        api.requireText(input, "name");
         ObjectNode value = api.newDocument(input);
         if (value.path("id").asText().isBlank()) value.put("id", UUID.randomUUID().toString());
         value.put("updatedAt", Instant.now().toString());
@@ -61,6 +62,7 @@ public class AdminReferenceResourceV1 {
 
     @PutMapping("/{type}/{id}")
     public ObjectNode update(@PathVariable String type, @PathVariable String id, @RequestBody JsonNode input) {
+        api.requireText(input, "name");
         ObjectNode value = api.newDocument(input);
         value.put("id", id);
         value.put("updatedAt", Instant.now().toString());
