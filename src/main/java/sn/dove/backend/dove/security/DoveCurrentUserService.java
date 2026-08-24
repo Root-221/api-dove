@@ -2,9 +2,6 @@ package sn.dove.backend.dove.security;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,6 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import sn.dove.backend.dove.config.DoveProperties;
 import sn.dove.backend.dove.service.DoveResourceStore;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @Service
 public class DoveCurrentUserService {
@@ -120,9 +120,11 @@ public class DoveCurrentUserService {
             return true;
         }
         JsonNode scope = user.path("accessScope");
-        return contains(scope.path("applicationIds"), resource.path("applicationId").asText()) &&
-        contains(scope.path("businessJobIds"), resource.path("businessJobId").asText()) &&
-        contains(scope.path("moduleIds"), resource.path("moduleId").asText());
+        return (
+            contains(scope.path("applicationIds"), resource.path("applicationId").asText()) &&
+            contains(scope.path("businessJobIds"), resource.path("businessJobId").asText()) &&
+            contains(scope.path("moduleIds"), resource.path("moduleId").asText())
+        );
     }
 
     public boolean canReadContent(ObjectNode user, JsonNode content, boolean explicitCrossBusinessJob) {
@@ -131,20 +133,35 @@ public class DoveCurrentUserService {
         }
         boolean publicStatus = List.of("PUBLIER", "A_REVISER").contains(content.path("status").asText());
         JsonNode scope = user.path("accessScope");
-        return publicStatus &&
-        explicitCrossBusinessJob &&
-        permissions(user).contains("READ_CROSS_BUSINESS_JOB") &&
-        contains(scope.path("applicationIds"), content.path("applicationId").asText());
+        return (
+            publicStatus &&
+            explicitCrossBusinessJob &&
+            permissions(user).contains("READ_CROSS_BUSINESS_JOB") &&
+            contains(scope.path("applicationIds"), content.path("applicationId").asText())
+        );
     }
 
     public boolean canSeeApplication(ObjectNode user, String id) {
-        return isGlobal(user) || contains(user.path("accessScope").path("applicationIds"), id);
+        if (isGlobal(user) || contains(user.path("accessScope").path("applicationIds"), id)) {
+            return true;
+        }
+        ObjectNode app = store.find("applications", id).orElse(null);
+        if (app != null && app.path("businessJobIds").isArray()) {
+            for (JsonNode jobId : app.path("businessJobIds")) {
+                if (contains(user.path("accessScope").path("businessJobIds"), jobId.asText())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean canSeeBusinessJob(ObjectNode user, String id, boolean browse) {
-        return isGlobal(user) ||
-        contains(user.path("accessScope").path("businessJobIds"), id) ||
-        (browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB"));
+        return (
+            isGlobal(user) ||
+            contains(user.path("accessScope").path("businessJobIds"), id) ||
+            (browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB"))
+        );
     }
 
     public boolean canSeeModule(ObjectNode user, JsonNode module, boolean browse) {
@@ -157,15 +174,19 @@ public class DoveCurrentUserService {
         if (contains(user.path("accessScope").path("moduleIds"), module.path("id").asText())) {
             return true;
         }
-        if (!browse || !permissions(user).contains("READ_CROSS_BUSINESS_JOB")) {
-            return false;
-        }
-        for (JsonNode jobId : module.path("businessJobIds")) {
-            if (!contains(user.path("accessScope").path("businessJobIds"), jobId.asText())) {
-                return true;
+        JsonNode jobIds = module.path("businessJobIds");
+        if (jobIds.isArray() && !jobIds.isEmpty()) {
+            for (JsonNode jobId : jobIds) {
+                if (contains(user.path("accessScope").path("businessJobIds"), jobId.asText())) {
+                    return true;
+                }
             }
+            return browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB");
         }
-        return false;
+        return (
+            user.path("accessScope").path("moduleIds").isEmpty() ||
+            contains(user.path("accessScope").path("applicationIds"), module.path("applicationId").asText())
+        );
     }
 
     private ObjectNode withPermissions(ObjectNode source) {
@@ -183,9 +204,16 @@ public class DoveCurrentUserService {
     }
 
     private boolean matches(ObjectNode user, Set<String> candidates) {
-        return candidates.stream().filter(value -> value != null && !value.isBlank()).anyMatch(value ->
-            List.of("id", "externalSubject", "login", "email").stream().map(user::path).map(JsonNode::asText).anyMatch(value::equalsIgnoreCase)
-        );
+        return candidates
+            .stream()
+            .filter(value -> value != null && !value.isBlank())
+            .anyMatch(value ->
+                List.of("id", "externalSubject", "login", "email")
+                    .stream()
+                    .map(user::path)
+                    .map(JsonNode::asText)
+                    .anyMatch(value::equalsIgnoreCase)
+            );
     }
 
     private static boolean contains(JsonNode array, String expected) {
@@ -201,6 +229,8 @@ public class DoveCurrentUserService {
     }
 
     private static void add(Set<String> values, String value) {
-        Optional.ofNullable(value).filter(candidate -> !candidate.isBlank()).ifPresent(values::add);
+        Optional.ofNullable(value)
+            .filter(candidate -> !candidate.isBlank())
+            .ifPresent(values::add);
     }
 }

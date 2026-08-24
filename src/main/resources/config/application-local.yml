@@ -45,7 +45,7 @@ dove:
     location: file:../DoveFront/db.json
   auth:
     dev-header-enabled: true
-    default-user-id: 85006628-0dd6-5586-a35c-b1cb40b9de1f
+    default-user-id: deb21cf4-5317-5065-9952-bd129b531a1b
   storage:
     provider: local
     local-directory: .dove-storage

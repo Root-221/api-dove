@@ -1,9 +1,5 @@
 package sn.dove.backend.dove.service;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.dove.backend.dove.domain.DoveResource;
 import sn.dove.backend.dove.repository.DoveResourceRepository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @Service
 @Transactional
@@ -42,7 +42,11 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public List<ObjectNode> list(String type, int maxRows) {
-        return repository.findAllByResourceTypeOrderByCreatedAtAsc(type, PageRequest.of(0, boundedLimit(maxRows))).stream().map(this::toJson).toList();
+        return repository
+            .findAllByResourceTypeOrderByCreatedAtAsc(type, PageRequest.of(0, boundedLimit(maxRows)))
+            .stream()
+            .map(this::toJson)
+            .toList();
     }
 
     /** Most-recent-first, bounded via SQL ORDER BY + LIMIT (no in-Java sort/truncation). */
@@ -139,10 +143,17 @@ public class DoveResourceStore {
     }
 
     public boolean delete(String type, String id) {
-        return repository.findByResourceTypeAndExternalId(type, id).map(entity -> {
-            repository.delete(entity);
-            return true;
-        }).orElse(false);
+        return repository
+            .findByResourceTypeAndExternalId(type, id)
+            .map(entity -> {
+                repository.delete(entity);
+                return true;
+            })
+            .orElse(false);
+    }
+
+    public void deleteAll() {
+        repository.deleteAll();
     }
 
     public ObjectNode upsert(String type, JsonNode input) {
