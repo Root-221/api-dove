@@ -15,15 +15,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import sn.dove.backend.dove.service.DoveScopeConsistencyService;
 
 @RestController
 @RequestMapping("/api/v1")
 public class ProposalResourceV1 {
 
     private final DoveApiSupport api;
+    private final DoveScopeConsistencyService consistency;
 
-    public ProposalResourceV1(DoveApiSupport api) {
+    public ProposalResourceV1(DoveApiSupport api, DoveScopeConsistencyService consistency) {
         this.api = api;
+        this.consistency = consistency;
     }
 
     @GetMapping("/me/proposals")
@@ -66,6 +69,7 @@ public class ProposalResourceV1 {
         for (String field : List.of("title", "situation", "treatment", "applicationId", "businessJobId", "moduleId")) {
             api.requireText(input, field);
         }
+        consistency.requireValidResourceTuple(proposal);
         if (!api.users.isInMutationScope(user, proposal)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Proposal is outside the user's scope");
         }
@@ -101,6 +105,7 @@ public class ProposalResourceV1 {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Proposal must be under review");
         }
         ObjectNode reviewer = api.currentUser();
+        consistency.requireValidResourceTuple(proposal);
         String now = Instant.now().toString();
         String contentId = UUID.randomUUID().toString();
         ObjectNode content = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
@@ -111,8 +116,9 @@ public class ProposalResourceV1 {
         content.putArray("formats").add("FICHEPRATIQUE");
         content.put("typeContenu", "FICHEPRATIQUE");
         content.put("status", "BROUILLON");
-        for (String field : List.of("applicationId", "businessJobId", "moduleId")) content.set(field, proposal.path(field));
-        content.put("ownerId", input == null ? reviewer.path("id").asText() : input.path("ownerId").asText(reviewer.path("id").asText()));
+        for (String field : List.of("applicationId", "moduleId")) content.set(field, proposal.path(field));
+        consistency.normalizeContentScope(reviewer, content);
+        content.put("ownerId", reviewer.path("id").asText());
         content.put("authorId", proposal.path("authorId").asText());
         if (input != null && !input.path("validatorId").asText().isBlank()) content.put("validatorId", input.path("validatorId").asText());
         content.put("version", 1);

@@ -1,6 +1,6 @@
 package sn.dove.backend.dove.web;
 
-import tools.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import sn.dove.backend.dove.config.DoveSeedLoader;
+import tools.jackson.databind.node.ObjectNode;
 
 @RestController
 @RequestMapping("/api/v1/admin/operations")
@@ -17,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminOperationsResourceV1 {
 
     private final DoveApiSupport api;
+    private final DoveSeedLoader seedLoader;
 
-    public AdminOperationsResourceV1(DoveApiSupport api) {
+    public AdminOperationsResourceV1(DoveApiSupport api, DoveSeedLoader seedLoader) {
         this.api = api;
+        this.seedLoader = seedLoader;
     }
 
     @GetMapping("/health")
@@ -58,5 +62,18 @@ public class AdminOperationsResourceV1 {
         ObjectNode updated = api.store.patch("backups", id, patch).orElseThrow(() -> api.notFound("backup"));
         api.events.audit(api.currentUserId(), "VERIFY_RESTORE", id, "SUCCESS");
         return updated;
+    }
+
+    @PostMapping("/reset-database")
+    public ObjectNode resetDatabase() throws IOException {
+        // The reset audit belongs to the data being discarded; writing it afterwards would make
+        // a requested clean database contain an unexpected functional record.
+        api.events.audit(api.currentUserId(), "RESET_DATABASE", "SUCCESS", "SUCCESS");
+        api.store.deleteAll();
+        int count = seedLoader.loadSeeds(true);
+        ObjectNode result = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        result.put("success", true);
+        result.put("message", "Base de données réinitialisée avec succès depuis db.json (" + count + " ressources importées).");
+        return result;
     }
 }

@@ -2,8 +2,12 @@ package sn.dove.backend.dove.web;
 
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,15 +40,30 @@ public class AdminRbacResourceV1 {
 
     @GetMapping("/roles")
     public List<ObjectNode> roles() {
-        return api
+        Map<String, ObjectNode> storedRoles = api
             .store
             .list("roles")
             .stream()
-            .map(role -> {
-                ObjectNode result = role.deepCopy();
-                String code = role.path("code").asText(role.path("role").asText());
+            .collect(
+                Collectors.toMap(role -> role.path("code").asText(role.path("role").asText()), Function.identity(), (first, ignored) -> first)
+            );
+        return DovePermissions
+            .BY_ROLE
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(entry -> {
+                String code = entry.getKey();
+                ObjectNode result = storedRoles
+                    .getOrDefault(code, tools.jackson.databind.node.JsonNodeFactory.instance.objectNode())
+                    .deepCopy();
+                if (result.path("id").asText().isBlank()) {
+                    result.put("id", UUID.nameUUIDFromBytes(("dove-role:" + code).getBytes(StandardCharsets.UTF_8)).toString());
+                }
+                result.put("code", code);
+                result.put("role", code);
                 ArrayNode permissions = result.putArray("permissionCodes");
-                DovePermissions.BY_ROLE.getOrDefault(code, List.of()).forEach(permissions::add);
+                entry.getValue().forEach(permissions::add);
                 result.put("system", true);
                 return result;
             })

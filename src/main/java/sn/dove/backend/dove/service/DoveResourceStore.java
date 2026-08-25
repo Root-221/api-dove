@@ -1,18 +1,19 @@
 package sn.dove.backend.dove.service;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.dove.backend.dove.domain.DoveResource;
 import sn.dove.backend.dove.repository.DoveResourceRepository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @Service
 @Transactional
@@ -23,10 +24,20 @@ public class DoveResourceStore {
 
     private final DoveResourceRepository repository;
     private final ObjectMapper objectMapper;
+    private final boolean isH2;
 
-    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper) {
+    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper, DataSource dataSource) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.isH2 = isH2Database(dataSource);
+    }
+
+    private boolean isH2Database(DataSource dataSource) {
+        try (java.sql.Connection connection = dataSource.getConnection()) {
+            return "H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +53,11 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public List<ObjectNode> list(String type, int maxRows) {
-        return repository.findAllByResourceTypeOrderByCreatedAtAsc(type, PageRequest.of(0, boundedLimit(maxRows))).stream().map(this::toJson).toList();
+        return repository
+            .findAllByResourceTypeOrderByCreatedAtAsc(type, PageRequest.of(0, boundedLimit(maxRows)))
+            .stream()
+            .map(this::toJson)
+            .toList();
     }
 
     /** Most-recent-first, bounded via SQL ORDER BY + LIMIT (no in-Java sort/truncation). */
@@ -62,6 +77,17 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public List<ObjectNode> listRecentForUser(String type, String userId, int limit) {
+        if (isH2) {
+            return list(type).stream()
+                .filter(node -> userId.equals(node.path("userId").asText()))
+                .sorted((a, b) -> {
+                    String ca = a.path("createdAt").asText("");
+                    String cb = b.path("createdAt").asText("");
+                    return cb.compareTo(ca); // Descending order
+                })
+                .limit(boundedLimit(limit))
+                .toList();
+        }
         return repository.findRecentByResourceTypeAndUserId(type, userId, boundedLimit(limit)).stream().map(this::toJson).toList();
     }
 
@@ -77,6 +103,11 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public Optional<ObjectNode> findByExternalSubject(String type, String subject) {
+        if (isH2) {
+            return list(type).stream()
+                .filter(node -> subject.equals(node.path("externalSubject").asText()))
+                .findFirst();
+        }
         return repository.findByResourceTypeAndExternalSubject(type, subject).map(this::toJson);
     }
 
@@ -139,10 +170,17 @@ public class DoveResourceStore {
     }
 
     public boolean delete(String type, String id) {
-        return repository.findByResourceTypeAndExternalId(type, id).map(entity -> {
-            repository.delete(entity);
-            return true;
-        }).orElse(false);
+        return repository
+            .findByResourceTypeAndExternalId(type, id)
+            .map(entity -> {
+                repository.delete(entity);
+                return true;
+            })
+            .orElse(false);
+    }
+
+    public void deleteAll() {
+        repository.deleteAll();
     }
 
     public ObjectNode upsert(String type, JsonNode input) {

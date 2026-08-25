@@ -10,7 +10,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import sn.dove.backend.dove.service.DoveScopeConsistencyService;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -58,9 +62,11 @@ public class ContentResourceV1 {
     );
 
     private final DoveApiSupport api;
+    private final DoveScopeConsistencyService consistency;
 
-    public ContentResourceV1(DoveApiSupport api) {
+    public ContentResourceV1(DoveApiSupport api, DoveScopeConsistencyService consistency) {
         this.api = api;
+        this.consistency = consistency;
     }
 
     @GetMapping("/contents")
@@ -92,7 +98,7 @@ public class ContentResourceV1 {
             .filter(content -> canAccess(user, content, jobs, browseOtherBusinessJobs))
             .filter(content -> matchesVisibility(user, content, statuses))
             .filter(content -> applications.isEmpty() || applications.contains(content.path("applicationId").asText()))
-            .filter(content -> jobs.isEmpty() || jobs.contains(content.path("businessJobId").asText()))
+            .filter(content -> jobs.isEmpty() || matchesAnyContentJob(content, jobs))
             .filter(content -> modules.isEmpty() || modules.contains(content.path("moduleId").asText()))
             .filter(content -> formats.isEmpty() || formats.stream().anyMatch(value -> hasFormat(content, value)))
             .filter(content -> statuses.isEmpty() || statuses.contains(content.path("status").asText()))
@@ -120,7 +126,7 @@ public class ContentResourceV1 {
         ObjectNode user = api.currentUser();
         ObjectNode content = api.require("contenus", id);
         boolean explicitCross = api.users.permissions(user).contains("READ_CROSS_BUSINESS_JOB");
-        if (!canAccess(user, content, explicitCross ? List.of(content.path("businessJobId").asText()) : List.of(), explicitCross)) {
+        if (!canAccess(user, content, explicitCross ? contentBusinessJobIds(content) : List.of(), explicitCross)) {
             throw api.notFound("content");
         }
         return content;
@@ -146,7 +152,7 @@ public class ContentResourceV1 {
             .filter(content -> api.users.isInMutationScope(user, content))
             .filter(content -> excludeContentId == null || !excludeContentId.equals(content.path("id").asText()))
             .filter(content -> DoveApiSupport.equalsText(content, "applicationId", applicationId))
-            .filter(content -> DoveApiSupport.equalsText(content, "businessJobId", businessJobId))
+            .filter(content -> businessJobId == null || businessJobId.isBlank() || contentBusinessJobIds(content).contains(businessJobId))
             .filter(content -> DoveApiSupport.equalsText(content, "moduleId", moduleId))
             .map(content -> similarityItem(content, normalized))
             .filter(item -> item.path("similarityScore").asDouble() >= 0.35)
@@ -162,6 +168,7 @@ public class ContentResourceV1 {
         ObjectNode user = api.currentUser();
         ObjectNode value = api.newDocument(input);
         validateEditorInput(value);
+        consistency.normalizeContentScope(user, value);
         if (!api.users.isInMutationScope(user, value)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Content is outside the mutation scope");
         }
@@ -181,9 +188,8 @@ public class ContentResourceV1 {
         value.put("id", UUID.randomUUID().toString());
         value.put("status", "BROUILLON");
         value.put("authorId", user.path("id").asText());
-        if (value.path("ownerId").asText().isBlank()) {
-            value.put("ownerId", user.path("id").asText());
-        }
+        value.put("ownerId", user.path("id").asText());
+        assignValidatorFromCreator(user, value);
         value.put("version", 1);
         value.put("updatedAt", now);
         value.put("viewCount", 0);
@@ -212,11 +218,14 @@ public class ContentResourceV1 {
         }
         ObjectNode value = api.newDocument(input);
         validateEditorInput(value);
+        consistency.normalizeContentScope(user, value);
         if (!api.users.isInMutationScope(user, value)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Content is outside the mutation scope");
         }
         copySystemField(current, value, "status");
         copySystemField(current, value, "authorId");
+        copySystemField(current, value, "ownerId");
+        copySystemField(current, value, "validatorId");
         copySystemField(current, value, "publishedById");
         copySystemField(current, value, "validatedAt");
         copySystemField(current, value, "publishedAt");
@@ -246,6 +255,29 @@ public class ContentResourceV1 {
             throw api.notFound("content");
         }
         ObjectNode patch = api.newDocument(input);
+        for (
+            String protectedField :
+                List.of(
+                    "authorId",
+                    "ownerId",
+                    "validatorId",
+                    "status",
+                    "version",
+                    "validatedAt",
+                    "publishedAt",
+                    "publishedById",
+                    "featured",
+                    "viewCount",
+                    "helpfulCount",
+                    "applicationId",
+                    "moduleId",
+                    "businessJobId",
+                    "businessJobIds",
+                    "businessUnitIds"
+                )
+        ) {
+            patch.remove(protectedField);
+        }
         patch.put("version", current.path("version").asInt(1) + 1);
         patch.put("updatedAt", Instant.now().toString());
         ObjectNode updated = api.store.patch("contenus", id, patch).orElseThrow(() -> api.notFound("content"));
@@ -258,6 +290,24 @@ public class ContentResourceV1 {
             "/manage/contents"
         );
         return updated;
+    }
+
+    @DeleteMapping("/contents/{id}")
+    @PreAuthorize("@doveAuthorization.has('ARCHIVE_CONTENT')")
+    @Transactional
+    public ResponseEntity<Void> delete(@PathVariable String id) {
+        ObjectNode user = api.currentUser();
+        ObjectNode content = api.require("contenus", id);
+        if (!api.users.isInMutationScope(user, content)) {
+            throw api.notFound("content");
+        }
+
+        deleteContentReferences("favorites", id);
+        deleteContentReferences("feedBacks", id);
+        deleteContentReferences("contentProgress", id);
+        api.store.delete("contenus", id);
+        api.events.audit(user.path("id").asText(), "DELETE_CONTENT", id, "SUCCESS");
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/contents/{id}/transitions")
@@ -273,11 +323,6 @@ public class ContentResourceV1 {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Invalid content transition");
         }
         api.users.requirePermission(permissionForTransition(target));
-        if ("VALIDER".equals(target)) {
-            if (user.path("id").asText().equals(content.path("ownerId").asText())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A user cannot validate their own content");
-            }
-        }
         String now = Instant.now().toString();
         ObjectNode patch = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
         patch.put("status", target);
@@ -285,6 +330,7 @@ public class ContentResourceV1 {
         patch.put("updatedAt", now);
         if ("VALIDER".equals(target)) {
             patch.put("validatedAt", now);
+            patch.put("validatorId", user.path("id").asText());
         }
         if ("PUBLIER".equals(target)) {
             patch.put("publishedAt", now);
@@ -335,7 +381,6 @@ public class ContentResourceV1 {
             .stream()
             .filter(content -> "EN_ATTENTE_VALIDATION".equals(content.path("status").asText()))
             .filter(content -> api.users.isInMutationScope(user, content))
-            .filter(content -> !user.path("id").asText().equals(content.path("ownerId").asText()))
             .toList();
     }
 
@@ -347,8 +392,19 @@ public class ContentResourceV1 {
         if (api.users.permissions(user).contains("EDIT_CONTENT") && api.users.isInMutationScope(user, content)) {
             return true;
         }
-        boolean explicitCross = browseOtherBusinessJobs || requestedJobs.contains(content.path("businessJobId").asText());
+        boolean explicitCross = browseOtherBusinessJobs || matchesAnyContentJob(content, requestedJobs);
         return api.users.canReadContent(user, content, explicitCross);
+    }
+
+    private void deleteContentReferences(String resourceType, String contentId) {
+        api.store
+            .list(resourceType)
+            .stream()
+            .filter(resource -> contentId.equals(resource.path("contentId").asText()))
+            .map(resource -> resource.path("id").asText())
+            .filter(id -> !id.isBlank())
+            .toList()
+            .forEach(id -> api.store.delete(resourceType, id));
     }
 
     private void notifyOwnerIfDifferent(ObjectNode actor, ObjectNode content, String title, String message, String route) {
@@ -413,9 +469,9 @@ public class ContentResourceV1 {
                 "|" +
                 content.path("applicationId").asText() +
                 "|" +
-                content.path("businessJobId").asText() +
+                content.path("moduleId").asText() +
                 "|" +
-                content.path("moduleId").asText();
+                String.join(",", contentBusinessUnitIds(content).stream().sorted().toList());
             ObjectNode current = canonical.get(key);
             if (current == null || contentRichness(content) > contentRichness(current)) {
                 canonical.put(key, content);
@@ -459,7 +515,7 @@ public class ContentResourceV1 {
     }
 
     private static void validateEditorInput(ObjectNode value) {
-        for (String field : List.of("title", "description", "applicationId", "businessJobId", "moduleId")) {
+        for (String field : List.of("title", "description", "applicationId", "moduleId")) {
             if (value.path(field).asText().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " is required");
             }
@@ -502,16 +558,19 @@ public class ContentResourceV1 {
     }
 
     private static boolean sameContext(ObjectNode left, ObjectNode right) {
-        return List.of("applicationId", "businessJobId", "moduleId")
-            .stream()
-            .allMatch(field -> left.path(field).asText().equals(right.path(field).asText()));
+        return (
+            List.of("applicationId", "moduleId")
+                .stream()
+                .allMatch(field -> left.path(field).asText().equals(right.path(field).asText())) &&
+            Set.copyOf(contentBusinessUnitIds(left)).equals(Set.copyOf(contentBusinessUnitIds(right)))
+        );
     }
 
     private static ObjectNode similarityItem(ObjectNode content, String normalizedTitle) {
         String candidate = DoveApiSupport.normalize(content.path("title").asText());
         double score = similarity(normalizedTitle, candidate);
         ObjectNode result = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
-        for (String field : List.of("id", "title", "applicationId", "businessJobId", "moduleId", "status")) {
+        for (String field : List.of("id", "title", "applicationId", "businessJobId", "businessJobIds", "businessUnitIds", "moduleId", "status")) {
             result.set(field, content.path(field));
         }
         ArrayNode existingFormats = result.putArray("formats");
@@ -524,6 +583,52 @@ public class ContentResourceV1 {
         result.put("similarityScore", Math.round(score * 100.0) / 100.0);
         result.put("canEdit", true);
         return result;
+    }
+
+    private void assignValidatorFromCreator(ObjectNode creator, ObjectNode content) {
+        String validatorId = creator.path("contentValidatorId").asText();
+        boolean valid = !validatorId.isBlank() &&
+            !validatorId.equals(creator.path("id").asText()) &&
+            api.store
+                .find("utilisateurs", validatorId)
+                .filter(user -> "ACTIVE".equals(user.path("status").asText()))
+                .filter(user -> "USER_ENABLEMENT".equals(user.path("role").asText()))
+                .isPresent();
+        if (valid) {
+            content.put("validatorId", validatorId);
+        } else {
+            content.remove("validatorId");
+        }
+    }
+
+    private static List<String> contentBusinessJobIds(JsonNode content) {
+        List<String> result = new ArrayList<>();
+        JsonNode values = content.path("businessJobIds");
+        if (values.isArray()) {
+            values.forEach(value -> {
+                String id = value.asText();
+                if (!id.isBlank() && !result.contains(id)) result.add(id);
+            });
+        }
+        String legacyId = content.path("businessJobId").asText();
+        if (!legacyId.isBlank() && !result.contains(legacyId)) result.add(legacyId);
+        return List.copyOf(result);
+    }
+
+    private static List<String> contentBusinessUnitIds(JsonNode content) {
+        List<String> result = new ArrayList<>();
+        JsonNode values = content.path("businessUnitIds");
+        if (values.isArray()) {
+            values.forEach(value -> {
+                String id = value.asText();
+                if (!id.isBlank() && !result.contains(id)) result.add(id);
+            });
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean matchesAnyContentJob(JsonNode content, List<String> requestedJobIds) {
+        return contentBusinessJobIds(content).stream().anyMatch(requestedJobIds::contains);
     }
 
     private static double similarity(String left, String right) {

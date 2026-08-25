@@ -34,4 +34,9 @@ class DovePermissionsTest {
     void everyKnownRoleCanAtLeastReadContent() {
         assertThat(DovePermissions.BY_ROLE.values()).allSatisfy(permissions -> assertThat(permissions).contains("READ_CONTENT"));
     }
+
+    @Test
+    void adminCanManageReferenceDataIncludingApplicationsAndModules() {
+        assertThat(DovePermissions.BY_ROLE.get("ADMIN")).contains("MANAGE_REFERENCE_DATA");
+    }
 }
