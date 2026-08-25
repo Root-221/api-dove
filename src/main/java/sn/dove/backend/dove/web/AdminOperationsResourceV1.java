@@ -66,9 +66,11 @@ public class AdminOperationsResourceV1 {
 
     @PostMapping("/reset-database")
     public ObjectNode resetDatabase() throws IOException {
+        // The reset audit belongs to the data being discarded; writing it afterwards would make
+        // a requested clean database contain an unexpected functional record.
+        api.events.audit(api.currentUserId(), "RESET_DATABASE", "SUCCESS", "SUCCESS");
         api.store.deleteAll();
         int count = seedLoader.loadSeeds(true);
-        api.events.audit(api.currentUserId(), "RESET_DATABASE", "SUCCESS", "SUCCESS");
         ObjectNode result = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
         result.put("success", true);
         result.put("message", "Base de données réinitialisée avec succès depuis db.json (" + count + " ressources importées).");

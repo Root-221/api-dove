@@ -3,7 +3,9 @@ package sn.dove.backend.dove.web;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import sn.dove.backend.dove.service.DoveScopeConsistencyService;
 
 @RestController
 @RequestMapping("/api/v1/admin/users")
@@ -24,9 +27,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class AdminUserResourceV1 {
 
     private final DoveApiSupport api;
+    private final DoveScopeConsistencyService consistency;
 
-    public AdminUserResourceV1(DoveApiSupport api) {
+    public AdminUserResourceV1(DoveApiSupport api, DoveScopeConsistencyService consistency) {
         this.api = api;
+        this.consistency = consistency;
     }
 
     @GetMapping
@@ -43,7 +48,8 @@ public class AdminUserResourceV1 {
     public ObjectNode create(@RequestBody JsonNode input) {
         ObjectNode user = api.newDocument(input);
         for (String field : List.of("firstName", "lastName", "email", "role")) api.requireText(input, field);
-        String email = user.path("email").asText().toLowerCase();
+        String email = normalizedEmail(user);
+        user.put("email", email);
         boolean exists = api.store.list("utilisateurs").stream().anyMatch(candidate -> email.equalsIgnoreCase(candidate.path("email").asText()));
         if (exists) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with this email already exists");
@@ -60,6 +66,7 @@ public class AdminUserResourceV1 {
             scope.putArray("businessJobIds");
             scope.putArray("moduleIds");
         }
+        consistency.normalizeUser(user);
         ObjectNode created = api.store.create("utilisateurs", user);
         api.events.audit(api.currentUserId(), "CREATE_USER", created.path("id").asText(), "SUCCESS");
         api.events.notification(
@@ -74,8 +81,17 @@ public class AdminUserResourceV1 {
 
     @PatchMapping("/{id}")
     public ObjectNode patch(@PathVariable String id, @RequestBody JsonNode input) {
-        protectLastAdmin(id, input);
-        ObjectNode updated = api.store.patch("utilisateurs", id, input).orElseThrow(() -> api.notFound("user"));
+        ObjectNode current = api.require("utilisateurs", id);
+        ObjectNode patch = api.newDocument(input);
+        ObjectNode candidate = current.deepCopy();
+        patch.properties().forEach(field -> candidate.set(field.getKey(), field.getValue()));
+        consistency.normalizeUser(candidate);
+        patch.put("role", candidate.path("role").asText());
+        patch.put("status", candidate.path("status").asText());
+        patch.set("accessScope", candidate.path("accessScope"));
+        protectLastAdmin(id, patch);
+        ObjectNode updated = api.store.patch("utilisateurs", id, patch).orElseThrow(() -> api.notFound("user"));
+        api.users.invalidateUser(updated);
         api.events.audit(api.currentUserId(), "UPDATE_USER", id, "SUCCESS");
         notifyUserUpdate(id, "Votre profil DOVE a été modifié par un administrateur.");
         return updated;
@@ -101,8 +117,13 @@ public class AdminUserResourceV1 {
         if (input.has("additionalPermissions")) patch.set("additionalPermissions", input.path("additionalPermissions"));
         if (input.has("additionalPermissionCodes")) patch.set("additionalPermissions", input.path("additionalPermissionCodes"));
         if (input.has("contentValidatorId")) patch.set("contentValidatorId", input.path("contentValidatorId"));
+        ObjectNode candidate = user.deepCopy();
+        patch.properties().forEach(field -> candidate.set(field.getKey(), field.getValue()));
+        consistency.normalizeUser(candidate);
+        patch.set("accessScope", candidate.path("accessScope"));
         protectLastAdmin(id, patch);
         ObjectNode updated = api.store.patch("utilisateurs", id, patch).orElseThrow(() -> api.notFound("user"));
+        api.users.invalidateUser(updated);
         cascadeValidator(id, updated.path("contentValidatorId").asText());
         api.events.audit(api.currentUserId(), "UPDATE_USER_ACCESS", id, "SUCCESS");
         notifyUserUpdate(id, "Votre rôle, votre statut ou votre périmètre DOVE a été mis à jour.");
@@ -117,7 +138,31 @@ public class AdminUserResourceV1 {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "users array is required");
         }
         java.util.ArrayList<ObjectNode> imported = new java.util.ArrayList<>();
-        users.forEach(user -> imported.add(api.store.upsert("utilisateurs", user)));
+        Set<String> importedEmails = new HashSet<>();
+        users.forEach(inputUser -> {
+            ObjectNode user = api.newDocument(inputUser);
+            for (String field : List.of("firstName", "lastName", "email", "role")) api.requireText(user, field);
+            if (user.path("id").asText().isBlank()) user.put("id", UUID.randomUUID().toString());
+            String email = normalizedEmail(user);
+            String userId = user.path("id").asText();
+            boolean duplicate =
+                !importedEmails.add(email) ||
+                api
+                    .store
+                    .list("utilisateurs")
+                    .stream()
+                    .anyMatch(candidate ->
+                        !userId.equals(candidate.path("id").asText()) && email.equalsIgnoreCase(candidate.path("email").asText())
+                    );
+            if (duplicate) throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with this email already exists");
+            user.put("email", email);
+            user.put("status", user.path("status").asText("ACTIVE"));
+            user.put("lastLoginAt", user.path("lastLoginAt").asText(Instant.now().toString()));
+            consistency.normalizeUser(user);
+            ObjectNode importedUser = api.store.upsert("utilisateurs", user);
+            api.users.invalidateUser(importedUser);
+            imported.add(importedUser);
+        });
         api.events.audit(api.currentUserId(), "IMPORT_USERS", Integer.toString(imported.size()), "SUCCESS");
         return imported;
     }
@@ -156,5 +201,14 @@ public class AdminUserResourceV1 {
         if (!api.currentUserId().equals(userId)) {
             api.events.notification(userId, "SYSTEM", "Accès DOVE mis à jour", message, "/app/profile");
         }
+    }
+
+    private String normalizedEmail(JsonNode user) {
+        String email = user.path("email").asText().trim().toLowerCase();
+        int separator = email.indexOf('@');
+        if (separator <= 0 || separator == email.length() - 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid email is required");
+        }
+        return email;
     }
 }

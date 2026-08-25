@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +24,20 @@ public class DoveResourceStore {
 
     private final DoveResourceRepository repository;
     private final ObjectMapper objectMapper;
+    private final boolean isH2;
 
-    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper) {
+    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper, DataSource dataSource) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.isH2 = isH2Database(dataSource);
+    }
+
+    private boolean isH2Database(DataSource dataSource) {
+        try (java.sql.Connection connection = dataSource.getConnection()) {
+            return "H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +77,17 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public List<ObjectNode> listRecentForUser(String type, String userId, int limit) {
+        if (isH2) {
+            return list(type).stream()
+                .filter(node -> userId.equals(node.path("userId").asText()))
+                .sorted((a, b) -> {
+                    String ca = a.path("createdAt").asText("");
+                    String cb = b.path("createdAt").asText("");
+                    return cb.compareTo(ca); // Descending order
+                })
+                .limit(boundedLimit(limit))
+                .toList();
+        }
         return repository.findRecentByResourceTypeAndUserId(type, userId, boundedLimit(limit)).stream().map(this::toJson).toList();
     }
 
@@ -81,6 +103,11 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public Optional<ObjectNode> findByExternalSubject(String type, String subject) {
+        if (isH2) {
+            return list(type).stream()
+                .filter(node -> subject.equals(node.path("externalSubject").asText()))
+                .findFirst();
+        }
         return repository.findByResourceTypeAndExternalSubject(type, subject).map(this::toJson);
     }
 

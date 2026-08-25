@@ -12,6 +12,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 import sn.dove.backend.dove.config.DoveProperties;
 import sn.dove.backend.dove.service.DoveResourceStore;
@@ -102,6 +104,29 @@ public class DoveCurrentUserService {
         }
     }
 
+    /**
+     * Evicts an updated user's authentication projection once the surrounding transaction commits.
+     * This makes role and additional-permission changes effective on the very next request.
+     */
+    public void invalidateUser(JsonNode user) {
+        String subject = user.path("externalSubject").asText();
+        if (subject.isBlank()) return;
+
+        Runnable invalidate = () -> userBySubject.invalidate(subject);
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        invalidate.run();
+                    }
+                }
+            );
+        } else {
+            invalidate.run();
+        }
+    }
+
     public Set<String> permissions(ObjectNode user) {
         Set<String> result = new LinkedHashSet<>(DovePermissions.BY_ROLE.getOrDefault(user.path("role").asText(), List.of()));
         JsonNode additional = user.path("additionalPermissions");
@@ -119,12 +144,29 @@ public class DoveCurrentUserService {
         if (isGlobal(user)) {
             return true;
         }
-        JsonNode scope = user.path("accessScope");
-        return (
-            contains(scope.path("applicationIds"), resource.path("applicationId").asText()) &&
-            contains(scope.path("businessJobIds"), resource.path("businessJobId").asText()) &&
-            contains(scope.path("moduleIds"), resource.path("moduleId").asText())
-        );
+        String applicationId = resource.path("applicationId").asText();
+        if (applicationId.isBlank() || !canSeeApplication(user, applicationId)) {
+            return false;
+        }
+        String moduleId = resource.path("moduleId").asText();
+        if (!moduleId.isBlank()) {
+            ObjectNode module = store.find("modules", moduleId).orElse(null);
+            if (
+                module == null ||
+                !applicationId.equals(module.path("applicationId").asText()) ||
+                !canSeeModule(user, module, false)
+            ) {
+                return false;
+            }
+        }
+
+        LinkedHashSet<String> resourceJobIds = values(resource.path("businessJobIds"));
+        String legacyJobId = resource.path("businessJobId").asText();
+        if (!legacyJobId.isBlank()) resourceJobIds.add(legacyJobId);
+        if (resourceJobIds.isEmpty()) {
+            store.find("applications", applicationId).ifPresent(application -> resourceJobIds.addAll(values(application.path("businessJobIds"))));
+        }
+        return matchesOrganizationalJobs(user, resourceJobIds);
     }
 
     public boolean canReadContent(ObjectNode user, JsonNode content, boolean explicitCrossBusinessJob) {
@@ -132,35 +174,32 @@ public class DoveCurrentUserService {
             return true;
         }
         boolean publicStatus = List.of("PUBLIER", "A_REVISER").contains(content.path("status").asText());
-        JsonNode scope = user.path("accessScope");
         return (
             publicStatus &&
             explicitCrossBusinessJob &&
             permissions(user).contains("READ_CROSS_BUSINESS_JOB") &&
-            contains(scope.path("applicationIds"), content.path("applicationId").asText())
+            canSeeApplication(user, content.path("applicationId").asText())
         );
     }
 
     public boolean canSeeApplication(ObjectNode user, String id) {
-        if (isGlobal(user) || contains(user.path("accessScope").path("applicationIds"), id)) {
-            return true;
-        }
-        ObjectNode app = store.find("applications", id).orElse(null);
-        if (app != null && app.path("businessJobIds").isArray()) {
-            for (JsonNode jobId : app.path("businessJobIds")) {
-                if (contains(user.path("accessScope").path("businessJobIds"), jobId.asText())) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return (
+            isGlobal(user) ||
+            store.find("applications", id).filter(this::isAvailableReference).filter(application ->
+                intersects(
+                    values(user.path("accessScope").path("businessUnitIds")),
+                    applicationBusinessUnitIds(application)
+                )
+            ).isPresent()
+        );
     }
 
     public boolean canSeeBusinessJob(ObjectNode user, String id, boolean browse) {
         return (
             isGlobal(user) ||
             contains(user.path("accessScope").path("businessJobIds"), id) ||
-            (browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB"))
+            (isEnablement(user) && jobMatchesBusinessUnit(user, id)) ||
+            (browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB") && jobMatchesBusinessUnit(user, id))
         );
     }
 
@@ -168,32 +207,139 @@ public class DoveCurrentUserService {
         if (isGlobal(user)) {
             return true;
         }
+        if (!isAvailableReference(module)) {
+            return false;
+        }
         if (!canSeeApplication(user, module.path("applicationId").asText())) {
             return false;
         }
-        if (contains(user.path("accessScope").path("moduleIds"), module.path("id").asText())) {
+        return true;
+    }
+
+    public boolean sharesOrganizationalScope(ObjectNode current, ObjectNode candidate, boolean browse) {
+        if (isGlobal(current)) {
             return true;
         }
-        JsonNode jobIds = module.path("businessJobIds");
-        if (jobIds.isArray() && !jobIds.isEmpty()) {
-            for (JsonNode jobId : jobIds) {
-                if (contains(user.path("accessScope").path("businessJobIds"), jobId.asText())) {
-                    return true;
-                }
-            }
-            return browse && permissions(user).contains("READ_CROSS_BUSINESS_JOB");
+        JsonNode currentScope = current.path("accessScope");
+        JsonNode candidateScope = candidate.path("accessScope");
+        if (intersects(currentScope.path("businessJobIds"), candidateScope.path("businessJobIds"))) {
+            return true;
         }
         return (
-            user.path("accessScope").path("moduleIds").isEmpty() ||
-            contains(user.path("accessScope").path("applicationIds"), module.path("applicationId").asText())
+            (isEnablement(current) || (browse && permissions(current).contains("READ_CROSS_BUSINESS_JOB"))) &&
+            intersects(currentScope.path("businessUnitIds"), candidateScope.path("businessUnitIds"))
         );
+    }
+
+    private boolean isEnablement(ObjectNode user) {
+        return "USER_ENABLEMENT".equals(user.path("role").asText());
+    }
+
+    private boolean matchesOrganizationalJobs(ObjectNode user, Set<String> jobIds) {
+        if (jobIds.isEmpty()) {
+            return false;
+        }
+        JsonNode scope = user.path("accessScope");
+        for (String jobId : jobIds) {
+            if (contains(scope.path("businessJobIds"), jobId) || (isEnablement(user) && jobMatchesBusinessUnit(user, jobId))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean jobMatchesBusinessUnit(ObjectNode user, String jobId) {
+        JsonNode businessUnitIds = user.path("accessScope").path("businessUnitIds");
+        return store
+            .find("metiers", jobId)
+            .filter(job -> contains(businessUnitIds, job.path("businessUnitId").asText()))
+            .isPresent();
     }
 
     private ObjectNode withPermissions(ObjectNode source) {
         ObjectNode user = source.deepCopy();
+        projectEffectiveScope(user);
         ArrayNode permissions = user.putArray("permissions");
         permissions(user).forEach(permissions::add);
         return user;
+    }
+
+    /**
+     * Builds the compatibility projection consumed by the frontend from the current reference
+     * hierarchy. The persisted user remains limited to its BU/job assignment.
+     */
+    private void projectEffectiveScope(ObjectNode user) {
+        JsonNode sourceScope = user.path("accessScope");
+        if (!sourceScope.isObject() || isGlobal(user)) {
+            return;
+        }
+
+        LinkedHashSet<String> businessUnitIds = values(sourceScope.path("businessUnitIds"));
+        LinkedHashSet<String> businessJobIds = values(sourceScope.path("businessJobIds"));
+        if (isEnablement(user)) {
+            businessJobIds.clear();
+            store
+                .list("metiers")
+                .stream()
+                .filter(this::isAvailableReference)
+                .filter(job -> businessUnitIds.contains(job.path("businessUnitId").asText()))
+                .map(job -> job.path("id").asText())
+                .filter(id -> !id.isBlank())
+                .forEach(businessJobIds::add);
+        } else {
+            businessJobIds
+                .stream()
+                .map(jobId -> store.find("metiers", jobId).orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(job -> job.path("businessUnitId").asText())
+                .filter(id -> !id.isBlank())
+                .forEach(businessUnitIds::add);
+        }
+
+        LinkedHashSet<String> applicationIds = new LinkedHashSet<>();
+        store
+            .list("applications")
+            .stream()
+            .filter(this::isAvailableReference)
+            .filter(application -> intersects(businessUnitIds, applicationBusinessUnitIds(application)))
+            .map(application -> application.path("id").asText())
+            .filter(id -> !id.isBlank())
+            .forEach(applicationIds::add);
+
+        LinkedHashSet<String> moduleIds = new LinkedHashSet<>();
+        store
+            .list("modules")
+            .stream()
+            .filter(this::isAvailableReference)
+            .filter(module -> applicationIds.contains(module.path("applicationId").asText()))
+            .map(module -> module.path("id").asText())
+            .filter(id -> !id.isBlank())
+            .forEach(moduleIds::add);
+
+        ObjectNode effectiveScope = user.putObject("accessScope");
+        effectiveScope.put("global", false);
+        putValues(effectiveScope, "businessUnitIds", businessUnitIds);
+        putValues(effectiveScope, "businessJobIds", businessJobIds);
+        putValues(effectiveScope, "applicationIds", applicationIds);
+        putValues(effectiveScope, "moduleIds", moduleIds);
+    }
+
+    private boolean isAvailableReference(JsonNode value) {
+        return !"ARCHIVED".equals(value.path("status").asText());
+    }
+
+    private LinkedHashSet<String> applicationBusinessUnitIds(JsonNode application) {
+        LinkedHashSet<String> directIds = values(application.path("businessUnitIds"));
+        if (!directIds.isEmpty()) return directIds;
+
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        values(application.path("businessJobIds"))
+            .stream()
+            .map(jobId -> store.find("metiers", jobId).orElse(null))
+            .filter(java.util.Objects::nonNull)
+            .map(job -> job.path("businessUnitId").asText())
+            .forEach(value -> add(result, value));
+        return result;
     }
 
     private ObjectNode requireActive(ObjectNode user) {
@@ -226,6 +372,35 @@ public class DoveCurrentUserService {
             }
         }
         return false;
+    }
+
+    private static boolean intersects(JsonNode left, JsonNode right) {
+        if (!left.isArray() || !right.isArray()) {
+            return false;
+        }
+        for (JsonNode value : right) {
+            if (contains(left, value.asText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean intersects(Set<String> left, Set<String> right) {
+        return left.stream().anyMatch(right::contains);
+    }
+
+    private static LinkedHashSet<String> values(JsonNode array) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (array.isArray()) {
+            array.forEach(value -> add(result, value.asText()));
+        }
+        return result;
+    }
+
+    private static void putValues(ObjectNode target, String field, Set<String> values) {
+        ArrayNode array = target.putArray(field);
+        values.forEach(array::add);
     }
 
     private static void add(Set<String> values, String value) {

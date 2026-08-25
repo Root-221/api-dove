@@ -85,9 +85,16 @@ Forme principale de `/me` :
 | GET     | `/modules`            | `applicationId`, `businessJobId`, `availableForBrowsing`, `q` |
 | GET     | `/modules/{id}`       | —                                                             |
 
-Un utilisateur métier ou Nandité ne reçoit que ses référentiels affectés. User Enablement peut
-demander `availableForBrowsing=true` pour consulter les métiers de ses applications grâce à
-`READ_CROSS_BUSINESS_JOB`. Ce mode de consultation ne change jamais son scope de mutation.
+Un utilisateur métier ou Nandité ne reçoit que les référentiels de sa Business Unit et de son
+métier. User Enablement peut consulter tous les métiers de sa Business Unit grâce à
+`READ_CROSS_BUSINESS_JOB`. Une application déclare directement ses `businessUnitIds` : tous les
+utilisateurs rattachés à un métier de ces BU y accèdent immédiatement, sans recopier l'application
+ou ses modules dans leurs comptes.
+
+Le périmètre organisationnel est porté par les `businessUnitIds` de l'application. Un module
+sélectionne uniquement son application parente et hérite automatiquement de ses BU. Les
+`businessJobIds` actifs correspondants restent exposés comme projection de compatibilité et sont
+actualisés lorsqu'un métier est ajouté, déplacé ou archivé.
 
 ## Contenu agrégé et recherche
 
@@ -104,6 +111,7 @@ même contexte, la liste les expose comme un seul contenu canonique.
 | POST    | `/contents`                  | `CREATE_CONTENT` ou `CONTRIBUTE`   | Création d'un brouillon           |
 | PUT     | `/contents/{id}`             | `EDIT_CONTENT`                     | Remplacement des champs éditables |
 | PATCH   | `/contents/{id}`             | `EDIT_CONTENT`                     | Mise à jour partielle             |
+| DELETE  | `/contents/{id}`             | `ARCHIVE_CONTENT`                  | Suppression définitive            |
 | POST    | `/contents/{id}/transitions` | selon la cible                     | Transition éditoriale             |
 | PUT     | `/contents/{id}/featured`    | `EDIT_CONTENT`                     | `{ "featured": true               | false }` |
 | GET     | `/content-validation-queue`  | `VALIDATE_CONTENT`                 | Contenus affectés au validateur   |
@@ -128,11 +136,14 @@ sort=updatedAt,desc
 
 La recherche exacte « Créer une commande » retourne une seule entrée si elle existe. Sans droit
 éditorial, seuls les statuts publics `PUBLIER` et `A_REVISER` sont visibles, sauf les contenus de
-l'auteur courant. User Enablement doit demander explicitement un autre métier ou
-`browseOtherBusinessJobs=true` pour une lecture inter-métiers publique.
+l'auteur courant. Un User Enablement peut gérer les contenus couvrant les métiers de sa Business
+Unit, y compris lorsque ces métiers ne sont pas son métier principal.
 
-`GET /contents/similar` accepte `title` (au moins 3 caractères), `applicationId`, `businessJobId`,
-`moduleId`, `excludeContentId` et `limit` (1 à 10). Il recherche uniquement dans le scope éditable
+`DELETE /contents/{id}` est limité au périmètre de mutation de l'utilisateur. La suppression est
+définitive et retire également les favoris, feedbacks et progressions associés au contenu.
+
+`GET /contents/similar` accepte `title` (au moins 3 caractères), `applicationId`, `moduleId`,
+`excludeContentId` et `limit` (1 à 10). Il recherche uniquement dans le scope éditable
 et renvoie notamment `similarityScore`, `formats`, `missingFormats` et `canEdit`. Une création avec
 un titre normalisé identique dans le même contexte retourne `409` et inclut l'ID existant dans le
 message `CONTENT_ALREADY_EXISTS:<id>`.
@@ -144,10 +155,7 @@ Exemple minimal de création :
   "title": "Créer une commande",
   "description": "Procédure complète",
   "applicationId": "…",
-  "businessJobId": "…",
   "moduleId": "…",
-  "ownerId": "…",
-  "validatorId": "…",
   "formats": ["VIDEO", "FICHEPRATIQUE", "FAQ"],
   "videoItems": [{ "order": 1, "title": "Démonstration", "mediaId": "…" }],
   "steps": [{ "order": 1, "title": "Ouvrir le module", "description": "…" }],
@@ -159,8 +167,12 @@ Exemple minimal de création :
 }
 ```
 
+`businessJobIds` et `businessUnitIds` sont calculés par l'API depuis l'application et la BU du
+créateur. `ownerId` et `authorId` prennent toujours l'identifiant du créateur ; un `ownerId` fourni
+par le client est ignoré. Le validateur éventuel est dérivé de l'affectation du créateur.
+
 Le serveur impose `BROUILLON`, l'auteur courant, les dates, les compteurs et la version initiale.
-Le titre, la description, l'application, le métier, le module et au moins un format sont requis.
+Le titre, la description, l'application, le module et au moins un format sont requis.
 
 Transitions autorisées :
 
@@ -174,7 +186,7 @@ ARCHIVER               → BROUILLON
 ```
 
 Corps : `{ "targetStatus": "PUBLIER" }`. Le serveur demande la permission correspondant à la
-cible. Pour `VALIDER`, l'acteur doit être le validateur affecté et différent du propriétaire.
+cible. Pour `VALIDER`, l'acteur doit posséder le profil User Enablement Validateur.
 
 ## Médias et stockage objet
 
@@ -320,9 +332,21 @@ dans son scope de mutation ; Admin voit les métriques globales.
 un upsert afin de supporter les identifiants générés par les formulaires actuels. L'API protège le
 dernier administrateur actif contre une désactivation ou un changement de rôle.
 
+Les écritures de référentiel respectent la hiérarchie suivante : une Business Unit contient des
+métiers, une application déclare au moins une Business Unit, puis un module appartient à une
+application et hérite de ses BU. Les noms sont uniques dans leur parent et les codes
+application sont uniques. Un élément ne peut pas être archivé tant qu'une référence stable ou un
+contenu actif en dépend.
+
 `PUT /admin/users/{id}/access` accepte `role`, `status`, `accessScope`,
 `additionalPermissions` et `contentValidatorId`. En production, `externalSubject` doit contenir le
 claim Keycloak `sub` pré-provisionné ; il ne doit jamais être choisi depuis un rôle du token.
+
+Pour `BUSINESS_USER` et `NANDITE`, le backend exige exactement un métier principal et dérive sa
+Business Unit. Pour `USER_ENABLEMENT`, il exige exactement une Business Unit et couvre
+dynamiquement tous ses métiers. Les `applicationIds` et `moduleIds` envoyés en écriture sont vidés :
+`GET /me` les recalcule comme projection compatible avec le frontend. Pour `ADMIN`, le backend
+force un scope global et vide les listes détaillées.
 
 ## Permissions standards
 

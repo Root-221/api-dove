@@ -126,10 +126,10 @@ Chaque utilisateur de production doit être pré-provisionné :
   "status": "ACTIVE",
   "accessScope": {
     "global": false,
-    "applicationIds": ["…"],
-    "businessUnitIds": ["…"],
-    "businessJobIds": ["…"],
-    "moduleIds": ["…"]
+    "applicationIds": [],
+    "businessUnitIds": ["bu-direction-grand-public"],
+    "businessJobIds": [],
+    "moduleIds": []
   }
 }
 ```
@@ -153,7 +153,8 @@ porté par le JWT.
 
 La source de vérité fonctionnelle est le backend DOVE :
 
-- l'affectation du rôle, les permissions nominatives et le scope sont persistés avec l'utilisateur ;
+- le rôle, les permissions nominatives et le rattachement stable BU/métier sont persistés avec l'utilisateur ;
+- les applications et modules effectifs sont calculés à la lecture depuis le référentiel, jamais dupliqués sur chaque compte ;
 - la matrice standard des rôles est versionnée dans `DovePermissions` ;
 - les écrans Admin utilisent `/api/v1/admin/users/**`, `/admin/roles` et `/admin/permissions` ;
 - chaque contrôleur sensible applique `@PreAuthorize` ;
@@ -168,10 +169,9 @@ Rôles standards :
 | `USER_ENABLEMENT` | éditorial de son scope + lecture inter-métiers explicite             |
 | `ADMIN`           | gouvernance, utilisateurs, référentiels, audit, sécurité, opérations |
 
-Pour un contenu, la lecture normale exige l'application, le métier et le module affectés. User
-Enablement peut lire un autre métier de ses applications avec `READ_CROSS_BUSINESS_JOB`, uniquement
-lorsque la demande est explicite et uniquement pour les statuts publics. Ce droit est ignoré pour
-les créations, modifications, transitions, feedbacks gérés et propositions revues.
+Pour un contenu, la lecture normale exige que l'application et le module soient rattachés au métier
+du compte. User Enablement couvre tous les métiers de sa Business Unit, y compris ceux ajoutés après
+la création de son compte. Les mutations restent limitées à cette Business Unit.
 
 ## Profil local
 
@@ -182,7 +182,7 @@ un Keycloak local :
 curl -H 'X-Dove-User-Id: <uuid>' http://localhost:8080/api/v1/me
 ```
 
-Sans header, le compte métier Bakary est utilisé. Ce filtre est désactivé par
+Sans header, le compte Admin DOVE local est utilisé. Ce filtre est désactivé par
 `dove.auth.dev-header-enabled=false` en production et ne doit jamais être réactivé dans un manifest
 de production.
 

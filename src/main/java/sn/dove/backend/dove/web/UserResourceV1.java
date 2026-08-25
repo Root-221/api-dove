@@ -1,6 +1,5 @@
 package sn.dove.backend.dove.web;
 
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -47,11 +46,7 @@ public class UserResourceV1 {
         if (api.users.isGlobal(current) || current.path("id").asText().equals(candidate.path("id").asText())) {
             return true;
         }
-        JsonNode currentScope = current.path("accessScope");
-        JsonNode candidateScope = candidate.path("accessScope");
-        boolean sharedApplication = intersects(currentScope.path("applicationIds"), candidateScope.path("applicationIds"));
-        boolean sharedJob = intersects(currentScope.path("businessJobIds"), candidateScope.path("businessJobIds"));
-        return sharedApplication && (sharedJob || (browse && api.users.permissions(current).contains("READ_CROSS_BUSINESS_JOB")));
+        return api.users.sharesOrganizationalScope(current, candidate, browse);
     }
 
     private static ObjectNode publicProfile(ObjectNode source) {
@@ -60,13 +55,4 @@ public class UserResourceV1 {
         return result;
     }
 
-    private static boolean intersects(JsonNode left, JsonNode right) {
-        if (!left.isArray() || !right.isArray()) return false;
-        for (JsonNode leftValue : left) {
-            for (JsonNode rightValue : right) {
-                if (leftValue.asText().equals(rightValue.asText())) return true;
-            }
-        }
-        return false;
-    }
 }

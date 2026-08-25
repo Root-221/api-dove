@@ -62,7 +62,7 @@ public class DoveSeedLoader implements ApplicationRunner {
                         store.upsert(field.getKey(), item);
                         imported++;
                     }
-                } else if (field.getValue().isObject()) {
+                } else if (field.getValue().isObject() && !field.getValue().isEmpty()) {
                     store.upsert(field.getKey(), field.getValue());
                     imported++;
                 }
