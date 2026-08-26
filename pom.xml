@@ -31,6 +31,7 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <start-class>sn.dove.backend.DoveBackendApp</start-class>
         <argLine>-Xmx1G</argLine>
+        <aws.sdk.version>2.42.36</aws.sdk.version>
         <m2e.apt.activation>jdt_apt</m2e.apt.activation>
         <run.addResources>false</run.addResources>
         <spring-boot.version>${project.parent.version}</spring-boot.version>
@@ -284,8 +285,18 @@
             <version>${mapstruct.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+            <version>${aws.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
@@ -309,7 +320,7 @@
         </dependency>
         <dependency>
             <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers-postgresql</artifactId>
+            <artifactId>testcontainers-mysql</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -768,12 +779,12 @@
                     <configuration>
                         <changeLogFile>config/liquibase/master.xml</changeLogFile>
                         <diffChangeLogFile>${project.basedir}/src/main/resources/config/liquibase/changelog/${maven.build.timestamp}_changelog.xml</diffChangeLogFile>
-                        <driver>org.postgresql.Driver</driver>
+                        <driver>com.mysql.cj.jdbc.Driver</driver>
                         <url>${liquibase-plugin.url}</url>
                         <defaultSchemaName/>
                         <username>${liquibase-plugin.username}</username>
                         <password>${liquibase-plugin.password}</password>
-                        <referenceUrl>hibernate:spring:sn.dove.backend.domain?dialect=org.hibernate.dialect.PostgreSQLDialect&amp;hibernate.physical_naming_strategy=org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy&amp;hibernate.implicit_naming_strategy=org.springframework.boot.hibernate.SpringImplicitNamingStrategy</referenceUrl>
+                        <referenceUrl>hibernate:spring:sn.dove.backend.domain?dialect=org.hibernate.dialect.MySQLDialect&amp;hibernate.physical_naming_strategy=org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy&amp;hibernate.implicit_naming_strategy=org.springframework.boot.hibernate.SpringImplicitNamingStrategy</referenceUrl>
                         <verbose>true</verbose>
                         <contexts>!test</contexts>
                         <diffExcludeObjects>oauth_access_token, oauth_approvals, oauth_client_details, oauth_client_token, oauth_code, oauth_refresh_token</diffExcludeObjects>
@@ -835,7 +846,7 @@
             <properties>
                 <!-- default Spring profiles -->
                 <liquibase-plugin.password/>
-                <liquibase-plugin.url>jdbc:postgresql://localhost:5432/doveBackend</liquibase-plugin.url>
+                <liquibase-plugin.url>jdbc:mysql://localhost:3307/doveBackend?createDatabaseIfNotExist=true&amp;serverTimezone=UTC</liquibase-plugin.url>
                 <liquibase-plugin.username>doveBackend</liquibase-plugin.username>
                 <profile.test>test,testdev</profile.test>
                 <spring.profiles.active>dev${profile.tls}${profile.no-liquibase}</spring.profiles.active>
@@ -935,7 +946,7 @@
             <properties>
                 <!-- default Spring profiles -->
                 <liquibase-plugin.password/>
-                <liquibase-plugin.url>jdbc:postgresql://localhost:5432/doveBackend</liquibase-plugin.url>
+                <liquibase-plugin.url>jdbc:mysql://localhost:3307/doveBackend?createDatabaseIfNotExist=true&amp;serverTimezone=UTC</liquibase-plugin.url>
                 <liquibase-plugin.username>doveBackend</liquibase-plugin.username>
                 <profile.test>test,testprod</profile.test>
                 <spring.profiles.active>prod${profile.api-docs}${profile.tls}${profile.e2e}${profile.no-liquibase}</spring.profiles.active>

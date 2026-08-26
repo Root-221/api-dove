@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Portable, indexed projections of the two JSON fields used on authenticated requests. -->
+    <changeSet id="20260825120000-1" author="dove">
+        <addColumn tableName="dove_resource">
+            <column name="external_subject" type="varchar(191)"/>
+            <column name="owner_user_id" type="varchar(80)"/>
+        </addColumn>
+
+        <createIndex tableName="dove_resource" indexName="ix_dove_resource_external_subject_v2">
+            <column name="resource_type"/>
+            <column name="external_subject"/>
+        </createIndex>
+        <createIndex tableName="dove_resource" indexName="ix_dove_resource_owner_created_v2">
+            <column name="resource_type"/>
+            <column name="owner_user_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="20260825120000-2-postgresql" author="dove" dbms="postgresql">
+        <sql>
+            UPDATE dove_resource
+               SET external_subject = payload::jsonb -&gt;&gt; 'externalSubject',
+                   owner_user_id = payload::jsonb -&gt;&gt; 'userId';
+        </sql>
+    </changeSet>
+
+    <changeSet id="20260825120000-2-mysql" author="dove" dbms="mysql">
+        <sql>
+            UPDATE dove_resource
+               SET external_subject = JSON_UNQUOTE(JSON_EXTRACT(payload, '$.externalSubject')),
+                   owner_user_id = JSON_UNQUOTE(JSON_EXTRACT(payload, '$.userId'))
+             WHERE JSON_VALID(payload);
+        </sql>
+    </changeSet>
+</databaseChangeLog>

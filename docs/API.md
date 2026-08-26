@@ -339,8 +339,9 @@ application sont uniques. Un élément ne peut pas être archivé tant qu'une r�
 contenu actif en dépend.
 
 `PUT /admin/users/{id}/access` accepte `role`, `status`, `accessScope`,
-`additionalPermissions` et `contentValidatorId`. En production, `externalSubject` doit contenir le
-claim Keycloak `sub` pré-provisionné ; il ne doit jamais être choisi depuis un rôle du token.
+`additionalPermissions` et `contentValidatorId`. À la première connexion, le backend crée
+automatiquement le profil avec `externalSubject = JWT.sub`, le rôle `BUSINESS_USER` et un périmètre
+vide. Les rôles contenus dans le token ne sont jamais utilisés.
 
 Pour `BUSINESS_USER` et `NANDITE`, le backend exige exactement un métier principal et dérive sa
 Business Unit. Pour `USER_ENABLEMENT`, il exige exactement une Business Unit et couvre

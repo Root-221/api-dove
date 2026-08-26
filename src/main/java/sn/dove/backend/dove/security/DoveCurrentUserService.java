@@ -3,6 +3,7 @@ package sn.dove.backend.dove.security;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -10,6 +11,7 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,12 +35,11 @@ public class DoveCurrentUserService {
      * Short-lived cache from JWT subject to the resolved (pre-permission) user document.
      * requireUser() is called on every authenticated request, so even the indexed DB lookup
      * adds up at volume; a short TTL keeps role/status changes visible quickly (well under
-     * typical access-token lifetimes) while avoiding a DB round trip on most requests. Only
-     * positive lookups are cached (Caffeine's Cache#get skips caching a null mapping result),
-     * so an unprovisioned subject never produces a stale "not found" for a user who was
-     * provisioned moments later. The cached node is only ever read (requireActive) and
-     * deep-copied (withPermissions) before being handed to a caller, never mutated in place, so
-     * sharing the same cached instance across requests is safe.
+     * typical access-token lifetimes) while avoiding a DB round trip on most requests. Missing
+     * subjects are provisioned once by the cache loader as active BUSINESS_USER profiles.
+     * The cached node is only ever read (requireActive) and deep-copied (withPermissions) before
+     * being handed to a caller, never mutated in place, so sharing the same cached instance across
+     * requests is safe.
      */
     private final Cache<String, ObjectNode> userBySubject = Caffeine.newBuilder()
         .expireAfterWrite(Duration.ofSeconds(30))
@@ -64,10 +65,7 @@ public class DoveCurrentUserService {
             if (subject == null || subject.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The access token has no stable subject");
             }
-            ObjectNode source = userBySubject.get(subject, key -> store.findByExternalSubject(USERS, key).orElse(null));
-            if (source == null) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "The authenticated identity is not provisioned in DOVE");
-            }
+            ObjectNode source = userBySubject.get(subject, key -> resolveOrProvision(jwtAuthentication.getToken(), key));
             return withPermissions(requireActive(source));
         }
 
@@ -96,6 +94,61 @@ public class DoveCurrentUserService {
 
     public boolean hasPermission(String permission) {
         return permissions(requireUser()).contains(permission);
+    }
+
+    /**
+     * Creates the DOVE profile on the first successful Keycloak authentication. The stable JWT
+     * subject is used as both the DOVE id and externalSubject, making the operation idempotent and
+     * protected by the existing (resource_type, external_id) database uniqueness constraint.
+     * Functional claims and Keycloak roles are deliberately ignored.
+     */
+    private ObjectNode resolveOrProvision(Jwt token, String subject) {
+        return store.findByExternalSubject(USERS, subject).orElseGet(() -> store.create(USERS, defaultBusinessUser(token, subject)));
+    }
+
+    private ObjectNode defaultBusinessUser(Jwt token, String subject) {
+        String username = firstNonBlank(token.getClaimAsString("preferred_username"), token.getClaimAsString("email"), subject);
+        String displayName = firstNonBlank(token.getClaimAsString("name"), username);
+        String firstName = firstNonBlank(token.getClaimAsString("given_name"), firstName(displayName), username);
+        String lastName = firstNonBlank(token.getClaimAsString("family_name"), lastName(displayName), "Keycloak");
+        String email = firstNonBlank(token.getClaimAsString("email"), username.contains("@") ? username : username + "@keycloak.local");
+
+        ObjectNode user = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        user.put("id", subject);
+        user.put("externalSubject", subject);
+        user.put("login", username);
+        user.put("firstName", firstName);
+        user.put("lastName", lastName);
+        user.put("email", email.trim().toLowerCase());
+        user.put("role", "BUSINESS_USER");
+        user.putArray("additionalPermissions");
+        user.put("status", "ACTIVE");
+        user.put("lastLoginAt", Instant.now().toString());
+        user.put("provisioningSource", "KEYCLOAK");
+        ObjectNode scope = user.putObject("accessScope");
+        scope.put("global", false);
+        scope.putArray("applicationIds");
+        scope.putArray("businessUnitIds");
+        scope.putArray("businessJobIds");
+        scope.putArray("moduleIds");
+        return user;
+    }
+
+    private static String firstName(String displayName) {
+        int separator = displayName.indexOf(' ');
+        return separator > 0 ? displayName.substring(0, separator) : displayName;
+    }
+
+    private static String lastName(String displayName) {
+        int separator = displayName.indexOf(' ');
+        return separator > 0 && separator < displayName.length() - 1 ? displayName.substring(separator + 1) : "";
+    }
+
+    private static String firstNonBlank(String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank()) return candidate.trim();
+        }
+        return "";
     }
 
     public void requirePermission(String permission) {

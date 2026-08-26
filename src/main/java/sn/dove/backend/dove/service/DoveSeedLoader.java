@@ -1,4 +1,4 @@
-package sn.dove.backend.dove.config;
+package sn.dove.backend.dove.service;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,12 +10,12 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.stereotype.Component;
-import sn.dove.backend.dove.service.DoveResourceStore;
+import org.springframework.stereotype.Service;
+import sn.dove.backend.dove.config.DoveProperties;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@Component
+@Service
 public class DoveSeedLoader implements ApplicationRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(DoveSeedLoader.class);

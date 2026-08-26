@@ -1,114 +1,66 @@
-# Stockage des vidéos, images et fiches DOVE
+# Stockage des vidéos, images et documents DOVE
 
-DOVE ne stocke pas les octets dans PostgreSQL. La base conserve uniquement l'identifiant du média,
-son état, son type MIME, sa taille et sa `storageKey`. `ObjectStorageService` isole le backend du
-fournisseur réel.
+DOVE ne stocke pas les octets dans MySQL. La base conserve l'identifiant du média, son état, son type MIME, sa taille et sa `storageKey`. `ObjectStorageService` isole le reste de l'application du stockage réel.
 
 ## Modes disponibles
 
 ### Local
 
-Le profil `local` écrit dans `.dove-storage` et expose temporairement :
+Le profil `local` écrit dans `.dove-storage`. Ce mode sert au développement et aux tests ; il n'est pas destiné à un cluster multi-instance.
 
-```text
-PUT /api/v1/media/uploads/{uploadId}/content
-GET /api/v1/media/content/{storageKey}
-```
+### S3 OpenShift
 
-Ce mode sert au développement et aux tests ; il n'est pas destiné à un cluster de production.
-Les chemins sont normalisés pour empêcher une sortie du répertoire de stockage.
+Les profils `preprod` et `prod` activent `S3ObjectStorageService`. Le client AWS SDK Java 2.x utilise :
 
-### Passerelle cloud
+- l'endpoint HTTPS S3 compatible OpenShift ;
+- l'adressage path-style ;
+- des credentials statiques injectés exclusivement par Secret OpenShift ;
+- un bucket privé ;
+- l'API DOVE comme proxy, car le DNS `*.svc` n'est pas joignable depuis le navigateur.
 
-Le profil `prod` utilise `GatewayObjectStorageService`. La passerelle Sonatel peut ensuite cibler
-S3, OpenStack Swift, Azure Blob ou un autre service sans modifier le frontend ni les contrôleurs
-DOVE.
+Les variables complètes figurent dans [CONFIGURATION_ENVIRONNEMENTS.md](CONFIGURATION_ENVIRONNEMENTS.md).
 
-```text
-DOVE_STORAGE_PROVIDER=gateway
-DOVE_STORAGE_GATEWAY_URL=https://storage-gateway.internal
-DOVE_STORAGE_GATEWAY_API_KEY=<secret>
-DOVE_STORAGE_MAX_UPLOAD_BYTES=536870912
-```
+`GatewayObjectStorageService` reste disponible uniquement pour une future passerelle Sonatel, avec `DOVE_STORAGE_PROVIDER=gateway`. Il n'est utilisé par aucun profil cloud actuel.
 
-La clé d'API appartient uniquement au backend et doit être injectée par le gestionnaire de secrets.
-
-## Flux d'upload
+## Flux d'upload S3
 
 ```text
 Angular
-  1. POST /api/v1/media/uploads (métadonnées + Bearer DOVE)
+  1. POST /api/v1/media/uploads avec les métadonnées et le Bearer DOVE
 DOVE API
-  2. demande un ticket à POST {gateway}/uploads
-  3. retourne uploadId, mediaId, uploadUrl et requiredHeaders
+  2. génère uploadId, mediaId et une storageKey contrôlée
+  3. retourne l'URL authentifiée PUT /api/v1/media/uploads/{uploadId}/content
 Angular
-  4. PUT direct du binaire vers uploadUrl, sans Bearer Keycloak
-  5. POST /api/v1/media/uploads/{uploadId}/complete
+  4. envoie le binaire à l'API DOVE
 DOVE API
-  6. confirme à POST {gateway}/uploads/{uploadId}/complete
-  7. passe le média à READY
+  5. vérifie Content-Length, MIME, propriétaire et limite de taille
+  6. transmet le flux au bucket S3 interne
+Angular
+  7. POST /api/v1/media/uploads/{uploadId}/complete
+DOVE API
+  8. vérifie l'objet par HeadObject et passe le média à READY
 ```
 
-Le transfert direct évite de faire transiter de grandes vidéos par la JVM en production.
+Ce proxy est volontaire : exposer une URL présignée contenant `s3.openshift-storage.svc` produirait une URL inutilisable hors du cluster. Si une route S3 publique sécurisée est fournie plus tard, le service peut évoluer vers des URLs présignées sans changer le contrat Angular.
 
-Contrat attendu de la passerelle pour `POST /uploads` :
+## Lecture et suppression
 
-```json
-{
-  "uploadId": "…",
-  "mediaId": "…",
-  "fileName": "commande.mp4",
-  "mimeType": "video/mp4",
-  "sizeBytes": 10485760
-}
-```
+`GET /api/v1/media/{id}/playback-url` retourne une URL DOVE. `GET /api/v1/media/content/{storageKey}` diffuse ensuite l'objet depuis S3. Le bucket reste privé et son endpoint n'apparaît jamais côté client.
 
-Réponse :
+La suppression via DOVE appelle `DeleteObject`. Elle est refusée avec `409` si le média est encore référencé par un contenu.
 
-```json
-{
-  "uploadUrl": "https://object-storage/signed-put-url",
-  "requiredHeaders": { "Content-Type": "video/mp4" },
-  "expiresAt": "2026-08-22T18:00:00Z",
-  "storageKey": "dove/medias/…/commande.mp4"
-}
-```
+## Sécurité attendue
 
-Autres appels de passerelle :
-
-| Méthode | Route passerelle               | Usage                             |
-| ------- | ------------------------------ | --------------------------------- |
-| POST    | `/uploads/{uploadId}/complete` | corps `{ "storageKey": "…" }`     |
-| GET     | `/objects/playback-url?key=…`  | retourne `{ "url": "https://…" }` |
-| DELETE  | `/objects?key=…`               | supprime un objet non référencé   |
-
-## Lecture
-
-`GET /api/v1/media/{id}/playback-url` demande à la passerelle une URL de lecture signée. Le
-frontend l'utilise directement. Une URL doit avoir une durée courte, être limitée à un seul objet
-et être servie en HTTPS.
-
-Pour les vidéos, la plateforme de stockage/CDN doit supporter les requêtes `Range`, un
-`Content-Type` correct et, si nécessaire, la diffusion HLS/DASH après transcodage. Le modèle actuel
-accepte une URL prête à lire ; une chaîne asynchrone peut conserver `PROCESSING` jusqu'à la fin du
-scan antivirus et du transcodage, puis passer à `READY`.
-
-## Règles de sécurité à appliquer à la passerelle
-
-- bucket/conteneur privé, aucune liste publique ;
-- URL signées courtes pour upload et lecture ;
-- clé objet générée côté service, jamais un chemin fourni tel quel par le navigateur ;
-- limite de taille vérifiée avant signature et par le stockage ;
-- liste blanche MIME et vérification réelle du contenu après upload ;
-- scan antivirus pour PDF/images et contrôle codec/conteneur pour vidéo ;
-- chiffrement TLS en transit et chiffrement géré au repos ;
-- CORS du bucket limité à l'origine DOVE et aux méthodes/headers nécessaires ;
-- journalisation des créations, lectures administratives et suppressions ;
-- politique de rétention et suppression conforme aux règles Sonatel ;
-- lifecycle pour supprimer les uploads incomplets/expirés ;
-- réplication, sauvegarde ou versioning selon le RPO/RTO attendu.
-
-## Limites applicatives actuelles
+- bucket privé, aucun accès ou listing anonyme ;
+- identité S3 limitée au bucket DOVE et aux opérations `PutObject`, `GetObject`, `HeadObject`, `DeleteObject` ;
+- clé objet UUID générée par le backend, jamais un chemin fourni par le navigateur ;
+- HTTPS obligatoire et CA OpenShift/Sonatel installée dans le JRE ;
+- credentials uniquement dans un Secret ou coffre-fort, avec rotation ;
+- contrôle de taille préparée et reçue ;
+- liste blanche MIME ;
+- scan antivirus à ajouter pour les documents et images avant une exposition large ;
+- journalisation des créations et suppressions ;
+- politique de rétention/versioning alignée sur le RPO/RTO Sonatel.
 
 Types logiques acceptés : `VIDEO`, `IMAGE`, `DOCUMENT`.
 
@@ -124,22 +76,16 @@ application/pdf
 application/octet-stream
 ```
 
-La limite par défaut est 512 Mio et se configure avec `DOVE_STORAGE_MAX_UPLOAD_BYTES`. Le reverse
-proxy, la passerelle et le fournisseur objet doivent appliquer une limite cohérente.
+La limite par défaut est 512 Mio et se configure avec `DOVE_STORAGE_MAX_UPLOAD_BYTES`. Le routeur OpenShift doit accepter une taille cohérente et un timeout suffisant pour les vidéos.
 
-La suppression via DOVE est refusée avec `409` si le média est encore référencé par un contenu.
-La base doit être mise à jour uniquement après confirmation de la passerelle ; les échecs réseau
-doivent être supervisés et rejoués de manière contrôlée par la plateforme.
-
-## Test de recette recommandé
+## Recette recommandée
 
 Pour chaque environnement :
 
-1. préparer une image, un PDF et une vidéo proches des tailles limites ;
-2. vérifier le refus d'un MIME et d'une taille interdits ;
-3. laisser expirer une URL et vérifier son refus ;
-4. uploader, finaliser puis lire l'objet ;
-5. vérifier `Range` sur une vidéo ;
-6. tester une suppression non référencée et le `409` d'un média référencé ;
-7. confirmer qu'aucun header `Authorization: Bearer <Keycloak>` n'arrive au domaine objet ;
-8. contrôler les logs, métriques, alarmes et le nettoyage des uploads incomplets.
+1. charger une image, un PDF et une vidéo ;
+2. vérifier le refus d'un MIME interdit, d'une taille incorrecte et d'un `Content-Length` absent ;
+3. finaliser et relire chaque objet ;
+4. supprimer un média non référencé ;
+5. vérifier le `409` d'un média encore référencé ;
+6. confirmer dans les logs réseau que le navigateur ne contacte jamais le domaine S3 interne ;
+7. contrôler la rotation des credentials, les métriques, alertes et sauvegardes.

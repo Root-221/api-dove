@@ -32,7 +32,10 @@ spring:
       indent-output: true
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:postgresql://localhost:5433/doveBackend
+    url: jdbc:mysql://localhost:3307/doveBackend?createDatabaseIfNotExist=true&serverTimezone=UTC
+    username: doveBackend
+    password: doveBackend
+    driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       poolName: Hikari
       auto-commit: false

@@ -5,11 +5,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 
 public interface DatabaseTestcontainer {
     @Container
-    PostgreSQLContainer databaseContainer = new PostgreSQLContainer("postgres:18.4")
+    MySQLContainer databaseContainer = new MySQLContainer("mysql:8.4")
         .withDatabaseName("doveBackend")
 
         .withLogConsumer(new Slf4jLogConsumer(LoggerFactory.getLogger(DatabaseTestcontainer.class)))

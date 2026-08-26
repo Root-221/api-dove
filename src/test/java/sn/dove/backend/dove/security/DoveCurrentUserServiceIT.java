@@ -21,11 +21,11 @@ import sn.dove.backend.IntegrationTest;
 import sn.dove.backend.dove.service.DoveResourceStore;
 
 /**
- * Exercises DoveCurrentUserService.requireUser() end-to-end (real Postgres, real
+ * Exercises DoveCurrentUserService.requireUser() end-to-end (real MySQL, real
  * DoveResourceStore) to verify the indexed externalSubject lookup added to fix the
  * full-table-scan-on-every-request problem still resolves the caller correctly, including the
- * not-found and disabled-account cases. dove.auth.dev-header-enabled is false by default in the
- * test profile, so requireUser() takes the JWT-subject branch exercised here.
+ * automatic provisioning and disabled-account cases. dove.auth.dev-header-enabled is false by
+ * default in the test profile, so requireUser() takes the JWT-subject branch exercised here.
  */
 @IntegrationTest
 class DoveCurrentUserServiceIT {
@@ -61,12 +61,18 @@ class DoveCurrentUserServiceIT {
     }
 
     @Test
-    void requireUser_rejectsSubjectThatIsNotProvisioned() {
-        SecurityContextHolder.getContext().setAuthentication(jwtAuthentication("sub-" + UUID.randomUUID()));
+    void requireUser_autoProvisionsUnknownSubjectAsBusinessUser() {
+        String subject = "sub-" + UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(jwtAuthentication(subject));
 
-        assertThatThrownBy(() -> service.requireUser())
-            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN))
-            .hasMessageContaining("not provisioned");
+        ObjectNode resolved = service.requireUser();
+
+        assertThat(resolved.path("id").asText()).isEqualTo(subject);
+        assertThat(resolved.path("externalSubject").asText()).isEqualTo(subject);
+        assertThat(resolved.path("role").asText()).isEqualTo("BUSINESS_USER");
+        assertThat(resolved.path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(resolved.path("accessScope").path("businessJobIds")).isEmpty();
+        assertThat(store.findByExternalSubject(USERS, subject)).isPresent();
     }
 
     @Test
@@ -89,6 +95,10 @@ class DoveCurrentUserServiceIT {
         Jwt jwt = Jwt.withTokenValue("test-token")
             .header("alg", "none")
             .claim("sub", subject)
+            .claim("preferred_username", "new.user")
+            .claim("email", "new.user@sonatel.sn")
+            .claim("given_name", "New")
+            .claim("family_name", "User")
             .issuedAt(Instant.now())
             .expiresAt(Instant.now().plusSeconds(60))
             .build();

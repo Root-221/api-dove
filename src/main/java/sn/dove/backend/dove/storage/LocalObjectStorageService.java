@@ -51,7 +51,7 @@ public class LocalObjectStorageService implements ObjectStorageService {
     }
 
     @Override
-    public void writeUpload(String uploadId, InputStream input) throws IOException {
+    public void writeUpload(String uploadId, String storageKey, String contentType, long contentLength, InputStream input) throws IOException {
         Path target = resolve(uploadId + ".upload");
         Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
     }

@@ -1,5 +1,7 @@
 # DOVE Backend
 
+> Guide local, préproduction et production : [configuration MySQL, S3 et Keycloak](docs/CONFIGURATION_ENVIRONNEMENTS.md).
+
 API Spring Boot sécurisée de DOVE. Elle remplace le serveur JSON de démonstration du frontend,
 persiste les données applicatives, applique les permissions et les périmètres métier côté serveur,
 et délègue l'authentification de production à Keycloak Sonatel.
@@ -65,13 +67,32 @@ environnements sécurisés.
 En local uniquement, Angular ajoute `X-Dove-User-Id`. Le compte par défaut est Bakary Diassy.
 Le sélecteur de profils de la page de connexion obtient ses comptes via `/api/v1/dev/users`.
 
+### Authentification Keycloak locale
+
+Pour tester le véritable flux OpenID Connect et les JWT sans contacter Sonatel :
+
+```bash
+cd ../DoveFront
+npm run dev:keycloak
+```
+
+Cette commande démarre Keycloak, Angular et le backend avec le profil `local-keycloak`. Le guide
+détaillé, les URLs et les comptes locaux sont dans
+[KEYCLOAK_LOCAL.md](docs/KEYCLOAK_LOCAL.md). Un `Ctrl+C` arrête les trois services.
+
+Keycloak authentifie uniquement l’identité. Au premier login, DOVE crée automatiquement un profil
+actif `BUSINESS_USER` à partir du `JWT.sub`. Les rôles, permissions et périmètres sont ensuite
+gérés exclusivement dans DOVE.
+
 ## Profils et données
 
 | Profil Spring | Base       | Authentification        | Stockage                | Seed             |
 | ------------- | ---------- | ----------------------- | ----------------------- | ---------------- |
 | `local`       | H2 fichier | header de développement | dossier `.dove-storage` | oui si base vide |
-| `dev`         | PostgreSQL | header de développement | local                   | oui si base vide |
-| `prod`        | PostgreSQL | Bearer JWT Keycloak     | passerelle cloud        | non              |
+| `local-keycloak` | H2 dédié | Bearer JWT Keycloak local | dossier `.dove-storage-keycloak` | oui si base vide |
+| `dev`         | MySQL local | header de développement | local                  | oui si base vide |
+| `preprod`     | MySQL       | Bearer JWT Keycloak     | S3 OpenShift            | non              |
+| `prod`        | MySQL       | Bearer JWT Keycloak     | S3 OpenShift            | non              |
 
 Les dossiers `.dove-local` et `.dove-storage` sont ignorés par Git.
 
@@ -88,24 +109,9 @@ Les tests d'intégration JHipster utilisent Testcontainers : Docker doit être d
 
 ## Configuration de production
 
-Variables obligatoires ou à confirmer avec les équipes Sonatel :
-
-```text
-DOVE_DATABASE_URL=jdbc:postgresql://postgres:5432/dove
-DOVE_DATABASE_USERNAME=dove
-DOVE_DATABASE_PASSWORD=<secret injecté>
-DOVE_KEYCLOAK_ISSUER_URI=https://sso.sonatel.sn/realms/sonatel
-DOVE_KEYCLOAK_AUDIENCE=dove-api
-DOVE_KEYCLOAK_WEB_CLIENT_ID=dove-web
-DOVE_ALLOWED_ORIGINS=https://dove.sonatel.sn
-DOVE_STORAGE_PROVIDER=gateway
-DOVE_STORAGE_GATEWAY_URL=https://storage-gateway.internal
-DOVE_STORAGE_GATEWAY_API_KEY=<secret injecté>
-DOVE_STORAGE_MAX_UPLOAD_BYTES=536870912
-```
-
-Ne mettre aucun secret dans Git, l'image Angular ou `runtime-config.json`. Les secrets backend
-doivent venir du gestionnaire de secrets de la plateforme.
+Les variables, modèles et procédures OpenShift sont décrits dans le
+[guide des environnements](docs/CONFIGURATION_ENVIRONNEMENTS.md). Aucun secret ne doit être placé
+dans Git, l'image Angular ou `runtime-config.json`.
 
 Construction et lancement :
 
@@ -116,13 +122,15 @@ java -jar target/dove-backend-*.jar --spring.profiles.active=prod
 
 Liquibase applique les migrations au démarrage. Avant exposition publique, placer l'API derrière
 le reverse proxy Sonatel avec TLS, limites de taille et de débit, observabilité, sauvegardes
-PostgreSQL testées et accès réseau privé à la passerelle de stockage.
+MySQL testées et accès réseau privé au stockage S3.
 
 ## Documentation
 
 - [Authentification Keycloak et rôles DOVE](docs/AUTHENTICATION.md)
+- [Tester Keycloak en local](docs/KEYCLOAK_LOCAL.md)
 - [Contrat complet de l'API v1](docs/API.md)
-- [Stockage local et passerelle cloud](docs/STORAGE.md)
+- [Stockage local et S3 OpenShift](docs/STORAGE.md)
+- [Environnements et secrets](docs/CONFIGURATION_ENVIRONNEMENTS.md)
 - [Configuration de production](src/main/resources/config/application-prod.yml)
 - [Migration Liquibase DOVE](src/main/resources/config/liquibase/changelog/20260822160000_added_dove_api_resources.xml)
 
@@ -132,7 +140,7 @@ PostgreSQL testées et accès réseau privé à la passerelle de stockage.
 src/main/java/sn/dove/backend/dove/
 ├── config/       configuration, profil et import initial
 ├── domain/       document persistant versionné
-├── repository/   accès PostgreSQL/H2
+├── repository/   accès MySQL/H2
 ├── security/     utilisateur courant, permissions et périmètres
 ├── service/      magasin transactionnel, audit et notifications
 ├── storage/      contrat local/cloud

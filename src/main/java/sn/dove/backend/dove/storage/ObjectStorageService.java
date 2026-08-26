@@ -10,7 +10,13 @@ import org.springframework.core.io.Resource;
 public interface ObjectStorageService {
     UploadTicket prepareUpload(String uploadId, String mediaId, String fileName, String mimeType, long sizeBytes);
 
-    default void writeUpload(String uploadId, InputStream input) throws IOException {
+    default void writeUpload(
+        String uploadId,
+        String storageKey,
+        String contentType,
+        long contentLength,
+        InputStream input
+    ) throws IOException {
         throw new UnsupportedOperationException("Uploads are sent directly to the configured cloud provider");
     }
 

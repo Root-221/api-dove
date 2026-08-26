@@ -15,7 +15,7 @@ import java.util.UUID;
  * <p>The generated JHipster entities remain available for compatibility with the original class
  * diagram. This aggregate stores the richer, multi-format API representation atomically while the
  * domain is stabilising. Every mutation is still transactional, versioned and persisted in
- * PostgreSQL; JSON Server is never used at runtime.
+ * MySQL; JSON Server is never used at runtime.
  */
 @Entity
 @Table(
@@ -36,6 +36,12 @@ public class DoveResource {
 
     @Column(name = "payload", nullable = false, columnDefinition = "text")
     private String payload;
+
+    @Column(name = "external_subject", length = 191)
+    private String externalSubject;
+
+    @Column(name = "owner_user_id", length = 80)
+    private String ownerUserId;
 
     @Version
     @Column(name = "record_version", nullable = false)
@@ -77,6 +83,22 @@ public class DoveResource {
 
     public void setPayload(String payload) {
         this.payload = payload;
+    }
+
+    public String getExternalSubject() {
+        return externalSubject;
+    }
+
+    public void setExternalSubject(String externalSubject) {
+        this.externalSubject = externalSubject;
+    }
+
+    public String getOwnerUserId() {
+        return ownerUserId;
+    }
+
+    public void setOwnerUserId(String ownerUserId) {
+        this.ownerUserId = ownerUserId;
     }
 
     public long getRecordVersion() {

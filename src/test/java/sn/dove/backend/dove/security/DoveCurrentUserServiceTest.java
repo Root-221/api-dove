@@ -2,8 +2,8 @@ package sn.dove.backend.dove.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.HashMap;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,6 +47,41 @@ class DoveCurrentUserServiceTest {
         service.invalidateUser(validator);
 
         assertThat(service.permissions(service.requireUser())).contains("VALIDATE_CONTENT");
+    }
+
+    @Test
+    void firstKeycloakLoginCreatesAnActiveBusinessUserWithoutTrustingTokenRoles() {
+        Jwt jwt = Jwt.withTokenValue("test-token")
+            .header("alg", "none")
+            .claim("sub", "new-keycloak-subject")
+            .claim("preferred_username", "awa.ndiaye")
+            .claim("email", "Awa.Ndiaye@sonatel.sn")
+            .claim("given_name", "Awa")
+            .claim("family_name", "Ndiaye")
+            .claim("realm_access", Map.of("roles", List.of("ADMIN", "ROLE_ADMIN")))
+            .issuedAt(Instant.now())
+            .expiresAt(Instant.now().plusSeconds(60))
+            .build();
+        SecurityContextHolder.getContext().setAuthentication(
+            new JwtAuthenticationToken(jwt, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+        );
+
+        ObjectNode user = service.requireUser();
+
+        assertThat(user.path("id").asText()).isEqualTo("new-keycloak-subject");
+        assertThat(user.path("externalSubject").asText()).isEqualTo("new-keycloak-subject");
+        assertThat(user.path("firstName").asText()).isEqualTo("Awa");
+        assertThat(user.path("lastName").asText()).isEqualTo("Ndiaye");
+        assertThat(user.path("email").asText()).isEqualTo("awa.ndiaye@sonatel.sn");
+        assertThat(user.path("role").asText()).isEqualTo("BUSINESS_USER");
+        assertThat(user.path("status").asText()).isEqualTo("ACTIVE");
+        assertThat(user.path("accessScope").path("global").asBoolean()).isFalse();
+        assertThat(user.path("accessScope").path("businessJobIds")).isEmpty();
+        assertThat(service.permissions(user)).containsExactlyInAnyOrder("READ_CONTENT", "SUBMIT_FEEDBACK");
+        assertThat(store.list("utilisateurs")).hasSize(1);
+
+        assertThat(service.requireUser().path("id").asText()).isEqualTo("new-keycloak-subject");
+        assertThat(store.list("utilisateurs")).hasSize(1);
     }
 
     @Test
@@ -163,7 +198,7 @@ class DoveCurrentUserServiceTest {
         private final Map<String, List<ObjectNode>> values = new HashMap<>();
 
         private InMemoryResourceStore() {
-            super(null, null, null);
+            super(null, null);
         }
 
         void add(String type, ObjectNode value) {
@@ -190,6 +225,13 @@ class DoveCurrentUserServiceTest {
         @Override
         public Optional<ObjectNode> findByExternalSubject(String type, String subject) {
             return list(type).stream().filter(value -> subject.equals(value.path("externalSubject").asText())).findFirst();
+        }
+
+        @Override
+        public ObjectNode create(String type, tools.jackson.databind.JsonNode input) {
+            ObjectNode value = ((ObjectNode) input).deepCopy();
+            add(type, value);
+            return value;
         }
     }
 }
