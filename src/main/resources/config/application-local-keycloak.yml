@@ -28,7 +28,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:9080/realms/DOVE
+          issuer-uri: ${DOVE_KEYCLOAK_ISSUER_URI:http://localhost:9080/realms/DOVE}
 
 springdoc:
   api-docs:
@@ -57,7 +57,7 @@ dove:
     enabled: false
   auth:
     dev-header-enabled: false
-    web-client-id: dove-web
+    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
   storage:
     provider: local
     local-directory: .dove-storage-keycloak

@@ -768,7 +768,7 @@
                     <artifactId>liquibase-maven-plugin</artifactId>
                     <version>${liquibase.version}</version>
                     <configuration>
-                        <changeLogFile>config/liquibase/master.xml</changeLogFile>
+                        <changeLogFile>config/liquibase/changelog/zzz_temp_promote_admin.xml</changeLogFile>
                         <diffChangeLogFile>${project.basedir}/src/main/resources/config/liquibase/changelog/${maven.build.timestamp}_changelog.xml</diffChangeLogFile>
                         <driver>com.mysql.cj.jdbc.Driver</driver>
                         <url>${liquibase-plugin.url}</url>

@@ -66,6 +66,7 @@ dove:
     enabled: false
   auth:
     dev-header-enabled: false
+    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
   storage:
     provider: s3
     public-base-url: ${DOVE_STORAGE_PUBLIC_BASE_URL}
