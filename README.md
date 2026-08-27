@@ -20,14 +20,25 @@ et délègue l'authentification de production à Keycloak Sonatel.
 - administration des utilisateurs, périmètres, référentiels, RBAC, audit et opérations ;
 - validation JWT (`iss`, signature, durée et `aud`) et autorisations DOVE locales ;
 - stockage média local en développement et adaptateur de passerelle cloud en production ;
-- PostgreSQL + Liquibase en `dev`/`prod`, H2 persistant en profil `local`.
+- MySQL pour tous les profils applicatifs locaux et distants ; le local pointe vers
+  `MYSDOVEDEV` sans enregistrer le mot de passe dans Git.
 
 Les anciens contrôleurs générés par JHipster sous `/api/**` ne font pas partie du contrat et sont
 fermés par Spring Security. Seule l'API `/api/v1/**` doit être consommée.
 
 ## Démarrage local complet
 
-Prérequis recommandés : Java 21, Node 24.15 et npm 11.
+Prérequis recommandés : Java 21, Node 24.15, npm 11 et accès réseau/VPN à
+`10.137.21.115:6446`.
+
+Préparer une seule fois la configuration privée MySQL :
+
+```bash
+cp .env.local.example .env.local
+```
+
+Ouvrir ensuite `.env.local` et remplacer uniquement `__SECRET_MYSQL_DEVELOPPEMENT__` par le mot de
+passe transmis séparément. Ce fichier est ignoré par Git.
 
 Depuis le frontend :
 
@@ -38,14 +49,15 @@ npm run dev
 ```
 
 `npm run dev` lance Angular sur `http://localhost:4200` et ce backend sur
-`http://localhost:8080`. Le profil local utilise `.dove-local/database` et importe `DoveFront/db.json`
-une seule fois lorsque la base est vide. Ce JSON est donc uniquement une fixture d'initialisation :
-il n'est jamais servi par JSON Server.
+`http://localhost:8080`. Le profil local utilise directement la base MySQL partagée
+`MYSDOVEDEV`. Il n’importe pas `DoveFront/db.json` et n’utilise pas H2. Liquibase applique les
+migrations versionnées au démarrage, puis Hibernate `ddl-auto=update` complète les éventuels écarts
+de schéma propres à cet environnement de développement.
 
 Pour lancer uniquement l'API :
 
 ```bash
-./mvnw -Dspring-boot.run.profiles=local spring-boot:run
+./scripts/run-environment.sh local
 ```
 
 Sur une machine utilisant provisoirement une version Java hors de la plage du projet, ajouter
@@ -86,15 +98,15 @@ gérés exclusivement dans DOVE.
 
 ## Profils et données
 
-| Profil Spring | Base       | Authentification        | Stockage                | Seed             |
-| ------------- | ---------- | ----------------------- | ----------------------- | ---------------- |
-| `local`       | H2 fichier | header de développement | dossier `.dove-storage` | oui si base vide |
-| `local-keycloak` | H2 dédié | Bearer JWT Keycloak local | dossier `.dove-storage-keycloak` | oui si base vide |
-| `dev`         | MySQL local | header de développement | local                  | oui si base vide |
-| `preprod`     | MySQL       | Bearer JWT Keycloak     | S3 OpenShift            | non              |
-| `prod`        | MySQL       | Bearer JWT Keycloak     | S3 OpenShift            | non              |
+| Profil Spring | Base | Authentification | Stockage | Seed |
+|---|---|---|---|---|
+| `local` | MySQL `MYSDOVEDEV` | header de développement | dossier `.dove-storage` | non |
+| `local-keycloak` | MySQL `MYSDOVEDEV` | Bearer JWT Keycloak local | dossier `.dove-storage-keycloak` | non |
+| `dev` | MySQL Docker local | header de développement | local | oui si base vide |
+| `preprod` | MySQL `MYSDOVEDEV` | Bearer JWT Keycloak | S3 OpenShift | non |
+| `prod` | MySQL `MYSDOVEPRD` | Bearer JWT Keycloak | S3 OpenShift | non |
 
-Les dossiers `.dove-local` et `.dove-storage` sont ignorés par Git.
+Le fichier `.env.local` et les dossiers de stockage local sont ignorés par Git.
 
 ## Validation
 
@@ -140,7 +152,7 @@ MySQL testées et accès réseau privé au stockage S3.
 src/main/java/sn/dove/backend/dove/
 ├── config/       configuration, profil et import initial
 ├── domain/       document persistant versionné
-├── repository/   accès MySQL/H2
+├── repository/   accès MySQL
 ├── security/     utilisateur courant, permissions et périmètres
 ├── service/      magasin transactionnel, audit et notifications
 ├── storage/      contrat local/cloud

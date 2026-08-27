@@ -149,7 +149,18 @@ Prérequis :
 - Docker Desktop démarré ;
 - Java 21 ;
 - Node 22.22.3, 24.15 ou une version paire plus récente prise en charge ;
+- accès réseau/VPN à la base MySQL `10.137.21.115:6446` ;
 - ports `4200`, `8080` et `9080` disponibles.
+
+Préparer la connexion MySQL une seule fois :
+
+```bash
+cd /Users/mac/Documents/ProjetDove/api-dove
+cp .env.local.example .env.local
+```
+
+Dans `.env.local`, remplacer `__SECRET_MYSQL_DEVELOPPEMENT__` par le mot de passe fourni
+séparément. Ne jamais envoyer ou committer ce fichier.
 
 ```bash
 cd /Users/mac/Documents/ProjetDove/DoveFront

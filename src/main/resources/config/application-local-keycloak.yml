@@ -7,15 +7,23 @@ spring:
       enabled: false
   datasource:
     type: com.zaxxer.hikari.HikariDataSource
-    url: jdbc:h2:file:./.dove-local-keycloak/database;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
-    username: dove
-    password: dove
-    driver-class-name: org.h2.Driver
+    url: ${DOVE_DATABASE_URL}
+    username: ${DOVE_DATABASE_USERNAME}
+    password: ${DOVE_DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: DoveLocalKeycloakMySqlPool
+      auto-commit: false
+      maximum-pool-size: ${DOVE_DATABASE_POOL_MAX_SIZE:5}
+      minimum-idle: ${DOVE_DATABASE_POOL_MIN_IDLE:1}
+      connection-timeout: ${DOVE_DATABASE_CONNECTION_TIMEOUT_MS:30000}
+      validation-timeout: ${DOVE_DATABASE_VALIDATION_TIMEOUT_MS:5000}
   jpa:
     hibernate:
       ddl-auto: update
   liquibase:
-    enabled: false
+    enabled: true
+    contexts: local
   security:
     oauth2:
       resourceserver:
@@ -46,8 +54,7 @@ jhipster:
 
 dove:
   seed:
-    enabled: true
-    location: file:../DoveFront/db.json
+    enabled: false
   auth:
     dev-header-enabled: false
     web-client-id: dove-web

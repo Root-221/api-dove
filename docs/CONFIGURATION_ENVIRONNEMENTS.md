@@ -6,8 +6,8 @@ Ce document décrit la configuration du backend Spring Boot et du frontend Angul
 
 | Profil | Base de données | Authentification | Stockage |
 |---|---|---|---|
-| `local` | H2 fichier local | en-tête de développement | disque local |
-| `local-keycloak` | H2 fichier dédié | Keycloak local, realm `DOVE` | disque local dédié |
+| `local` | MySQL `MYSDOVEDEV` | en-tête de développement | disque local |
+| `local-keycloak` | MySQL `MYSDOVEDEV` | Keycloak local, realm `DOVE` | disque local dédié |
 | `preprod` | MySQL `MYSDOVEDEV` | Keycloak préproduction, realm `DOVE` | bucket S3 OpenShift |
 | `prod` | MySQL `MYSDOVEPRD` | Keycloak production, realm `DOVE` | bucket S3 OpenShift |
 
@@ -19,11 +19,21 @@ Les profils `preprod` et `prod` incluent le profil interne `cloud`, qui impose M
 
 Les fichiers suivants sont versionnés et ne contiennent que des marqueurs :
 
+- `.env.local.example`
 - `.env.preprod.example`
 - `.env.prod.example`
 - `.env.example`, modèle générique
 
-Les fichiers réels `.env.preprod.local` et `.env.prod.local` sont ignorés par Git. Pour préparer un poste autorisé :
+Les fichiers réels `.env.local`, `.env.preprod.local` et `.env.prod.local` sont ignorés par Git.
+Pour préparer le développement local :
+
+```sh
+cd api-dove
+cp .env.local.example .env.local
+# remplacer __SECRET_MYSQL_DEVELOPPEMENT__ dans .env.local
+```
+
+Pour préparer un poste autorisé en préproduction :
 
 ```sh
 cd api-dove
@@ -45,7 +55,7 @@ Le Secret doit contenir les variables du modèle de l'environnement sélectionn�
 
 ## Lancer le backend
 
-Local, sans secret externe :
+Local avec la base MySQL de développement :
 
 ```sh
 cd api-dove
@@ -82,6 +92,10 @@ Le script charge `.env.<profil>.local`, contrôle toutes les variables obligatoi
 DOVE_ENV_FILE=/chemin/securise/dove.env ./scripts/run-environment.sh prod
 ```
 
+Pour `local` et `local-keycloak`, le fichier chargé par défaut est `.env.local`. Le script refuse de
+démarrer si l’URL ne vise pas `10.137.21.115:6446/MYSDOVEDEV`, afin d’éviter une connexion locale
+accidentelle à la production.
+
 Dans OpenShift, définir directement `SPRING_PROFILES_ACTIVE=preprod` ou `SPRING_PROFILES_ACTIVE=prod` sur le Deployment.
 
 ## MySQL
@@ -90,6 +104,12 @@ Le backend utilise désormais MySQL Connector/J. Les migrations Liquibase ont é
 
 - `external_subject`, pour retrouver l'utilisateur Keycloak ;
 - `owner_user_id`, pour charger les notifications d'un utilisateur.
+
+Les profils `local` et `local-keycloak` exécutent Liquibase avec le contexte `local`, puis Hibernate
+avec `ddl-auto=update`, conformément au choix retenu pour `MYSDOVEDEV`. Ils n’exécutent jamais le
+seed `db.json`. Le compte MySQL local doit donc posséder les droits `CREATE`, `ALTER` et `INDEX` sur
+la base de développement. Cette configuration ne doit pas être copiée vers la production, où le
+schéma reste piloté uniquement par les migrations contrôlées.
 
 Les URLs fournies dans les modèles utilisent `sslMode=REQUIRED`. Ce mode impose le chiffrement, mais ne valide pas l'identité du serveur. Dès que l'autorité de certification et un nom DNS correspondant au certificat MySQL sont disponibles, remplacer ce paramètre par `sslMode=VERIFY_IDENTITY` et installer la CA Sonatel dans le truststore Java. Voir la [documentation MySQL Connector/J sur `sslMode`](https://dev.mysql.com/doc/connector-j/en/connector-j-connp-props-security.html).
 

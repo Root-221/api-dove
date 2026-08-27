@@ -28,14 +28,12 @@
 
         <createTable tableName="rel_communautes_nandite__membres">
             <column name="membres_id" type="${uuidType}">
-                <constraints nullable="false"/>
+                <constraints nullable="false" primaryKey="true"/>
             </column>
             <column name="communautes_nandite_id" type="${uuidType}">
-                <constraints nullable="false"/>
+                <constraints nullable="false" primaryKey="true"/>
             </column>
         </createTable>
-
-        <addPrimaryKey columnNames="communautes_nandite_id, membres_id" tableName="rel_communautes_nandite__membres"/>
     </changeSet>
 
     <!-- jhipster-needle-liquibase-add-changeset - JHipster will add changesets here -->
