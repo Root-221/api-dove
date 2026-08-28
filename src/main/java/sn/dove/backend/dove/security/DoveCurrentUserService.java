@@ -101,9 +101,40 @@ public class DoveCurrentUserService {
      * subject is used as both the DOVE id and externalSubject, making the operation idempotent and
      * protected by the existing (resource_type, external_id) database uniqueness constraint.
      * Functional claims and Keycloak roles are deliberately ignored.
+     *
+     * <p>An admin-invited profile (created via the Administration &gt; Utilisateurs "Inviter"/import
+     * flow, before this person ever logged in) has no externalSubject yet. Such a profile is linked
+     * to this subject by matching the JWT email instead of being shadowed by a second, freshly
+     * auto-provisioned BUSINESS_USER profile, so the role/scope the admin assigned actually applies.
      */
     private ObjectNode resolveOrProvision(Jwt token, String subject) {
-        return store.findByExternalSubject(USERS, subject).orElseGet(() -> store.create(USERS, defaultBusinessUser(token, subject)));
+        Optional<ObjectNode> bySubject = store.findByExternalSubject(USERS, subject);
+        if (bySubject.isPresent()) {
+            return bySubject.get();
+        }
+
+        Optional<ObjectNode> invited = findInvitedByEmail(token.getClaimAsString("email"));
+        if (invited.isPresent()) {
+            ObjectNode patch = tools.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+            patch.put("externalSubject", subject);
+            patch.put("lastLoginAt", Instant.now().toString());
+            String id = invited.get().path("id").asText();
+            return store.patch(USERS, id, patch).orElseGet(() -> store.create(USERS, defaultBusinessUser(token, subject)));
+        }
+
+        return store.create(USERS, defaultBusinessUser(token, subject));
+    }
+
+    private Optional<ObjectNode> findInvitedByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return store
+            .list(USERS)
+            .stream()
+            .filter(user -> user.path("externalSubject").asText().isBlank())
+            .filter(user -> email.equalsIgnoreCase(user.path("email").asText()))
+            .findFirst();
     }
 
     private ObjectNode defaultBusinessUser(Jwt token, String subject) {
