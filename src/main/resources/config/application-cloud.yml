@@ -1,0 +1,80 @@
+# Shared hardened configuration for preproduction and production.
+# Every secret is injected from the environment or an OpenShift Secret.
+spring:
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: ${DOVE_DATABASE_URL}
+    username: ${DOVE_DATABASE_USERNAME}
+    password: ${DOVE_DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: DoveHikariPool
+      auto-commit: false
+      maximum-pool-size: ${DOVE_DATABASE_POOL_MAX_SIZE:12}
+      minimum-idle: ${DOVE_DATABASE_POOL_MIN_IDLE:3}
+      connection-timeout: ${DOVE_DATABASE_CONNECTION_TIMEOUT_MS:30000}
+      validation-timeout: ${DOVE_DATABASE_VALIDATION_TIMEOUT_MS:5000}
+  liquibase:
+    enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${DOVE_KEYCLOAK_ISSUER_URI}
+  thymeleaf:
+    cache: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json,image/svg+xml
+    min-response-size: 1024
+
+jhipster:
+  cors:
+    allowed-origins: ${DOVE_ALLOWED_ORIGINS}
+    allowed-methods: '*'
+    allowed-headers: '*'
+    exposed-headers: 'Authorization,Link,X-Total-Count,X-Dove-Total-Count,X-Dove-Page,X-Dove-Page-Size'
+    allow-credentials: true
+    max-age: 1800
+  security:
+    oauth2:
+      audience:
+        - ${DOVE_KEYCLOAK_AUDIENCE:dove-api}
+  http:
+    cache:
+      timeToLiveInDays: 1461
+  cache:
+    caffeine:
+      time-to-live-seconds: 3600
+      max-entries: 1000
+
+dove:
+  seed:
+    enabled: false
+  auth:
+    dev-header-enabled: false
+    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
+  storage:
+    provider: s3
+    public-base-url: ${DOVE_STORAGE_PUBLIC_BASE_URL}
+    max-upload-bytes: ${DOVE_STORAGE_MAX_UPLOAD_BYTES:536870912}
+    s3:
+      endpoint: ${DOVE_STORAGE_S3_ENDPOINT}
+      region: ${DOVE_STORAGE_S3_REGION:us-east-1}
+      bucket: ${DOVE_STORAGE_S3_BUCKET}
+      access-key: ${DOVE_STORAGE_S3_ACCESS_KEY}
+      secret-key: ${DOVE_STORAGE_S3_SECRET_KEY}
+      path-style-access-enabled: ${DOVE_STORAGE_S3_PATH_STYLE_ACCESS_ENABLED:true}

@@ -5,8 +5,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import sn.dove.backend.dove.domain.DoveResource;
 
 public interface DoveResourceRepository extends JpaRepository<DoveResource, UUID> {
@@ -24,28 +22,13 @@ public interface DoveResourceRepository extends JpaRepository<DoveResource, UUID
 
     Optional<DoveResource> findByResourceTypeAndExternalId(String resourceType, String externalId);
 
-    /**
-     * Looks up a single "utilisateurs" (or other) resource by the auth-provider identifier
-     * stored in its JSON payload under "externalSubject" - distinct from the resource's own
-     * business id (external_id column). Backed by a partial functional index, see the
-     * 20260823090000_added_dove_resource_lookup_indexes changelog.
-     */
-    @Query(
-        value = "SELECT * FROM dove_resource WHERE resource_type = :type AND payload::jsonb ->> 'externalSubject' = :subject LIMIT 1",
-        nativeQuery = true
-    )
-    Optional<DoveResource> findByResourceTypeAndExternalSubject(@Param("type") String type, @Param("subject") String subject);
+    Optional<DoveResource> findFirstByResourceTypeAndExternalSubject(String resourceType, String externalSubject);
 
-    /**
-     * Most-recent-first, bounded list of resources of a given type belonging to a given user
-     * (JSON payload field "userId"), e.g. one user's notifications. Backed by a partial
-     * functional index, see the 20260823090000_added_dove_resource_lookup_indexes changelog.
-     */
-    @Query(
-        value = "SELECT * FROM dove_resource WHERE resource_type = :type AND payload::jsonb ->> 'userId' = :userId ORDER BY created_at DESC LIMIT :limit",
-        nativeQuery = true
-    )
-    List<DoveResource> findRecentByResourceTypeAndUserId(@Param("type") String type, @Param("userId") String userId, @Param("limit") int limit);
+    List<DoveResource> findAllByResourceTypeAndOwnerUserIdOrderByCreatedAtDesc(
+        String resourceType,
+        String ownerUserId,
+        Pageable pageable
+    );
 
     boolean existsByResourceType(String resourceType);
 }

@@ -1,0 +1,12 @@
+logging:
+  level:
+    ROOT: INFO
+    tech.jhipster: INFO
+    sn.dove.backend: INFO
+
+spring:
+  liquibase:
+    contexts: preprod
+
+info:
+  display-ribbon-on-profiles: preprod

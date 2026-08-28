@@ -1,5 +1,8 @@
 # Authentification Keycloak Sonatel et autorisations DOVE
 
+Pour tester le flux complet sans dépendre de l’environnement Sonatel, voir
+[Keycloak local](KEYCLOAK_LOCAL.md).
+
 ## Principe
 
 Keycloak Sonatel authentifie l'employé ; DOVE autorise l'action.
@@ -13,9 +16,14 @@ Spring Security Resource Server
   → signature JWK + iss + exp/nbf + aud
 DOVE
   → utilisateur local externalSubject == JWT.sub
+  → création automatique BUSINESS_USER si le sub est inconnu
   → statut + rôle + permissions + scope local
   → contrôle de méthode et filtrage des données
 ```
+
+Les Realm Roles et Client Roles Keycloak ne sont pas une source d’autorisation fonctionnelle pour
+`/api/v1`. Le backend utilise le JWT uniquement pour valider l’identité, puis charge le rôle et les
+permissions dans la base DOVE.
 
 Le frontend ne possède aucun secret. Le backend n'utilise pas le login OAuth2 avec session : il
 est stateless et accepte un Bearer token à chaque appel. Les tokens restent en mémoire dans
@@ -52,8 +60,8 @@ Le build de production charge `/runtime-config.json` avant d'initialiser Keycloa
 {
   "apiUrl": "/api/v1",
   "keycloak": {
-    "url": "https://sso.sonatel.sn",
-    "realm": "sonatel",
+    "url": "https://keycloak-sso-mfa.orange-sonatel.com",
+    "realm": "DOVE",
     "clientId": "dove-web"
   }
 }
@@ -80,7 +88,7 @@ Une URL signée de stockage située sur un autre domaine ne reçoit donc jamais 
 Variables de production :
 
 ```text
-DOVE_KEYCLOAK_ISSUER_URI=https://sso.sonatel.sn/realms/sonatel
+DOVE_KEYCLOAK_ISSUER_URI=https://keycloak-sso-mfa.orange-sonatel.com/realms/DOVE
 DOVE_KEYCLOAK_AUDIENCE=dove-api
 DOVE_KEYCLOAK_WEB_CLIENT_ID=dove-web
 DOVE_ALLOWED_ORIGINS=https://dove.sonatel.sn
@@ -107,47 +115,48 @@ jhipster:
 dove:
   auth:
     dev-header-enabled: false
-    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
 ```
 
 Au démarrage, Spring découvre les clés JWK depuis l'issuer. `SecurityConfiguration` ajoute le
 validateur d'audience, configure une session `STATELESS`, autorise uniquement `/api/v1/**`, ferme
 l'ancienne API `/api/**` et active la sécurité de méthode.
 
-## Provisioning local DOVE
+## Auto-provisionnement DOVE
 
-Chaque utilisateur de production doit être pré-provisionné :
+À la première authentification d’un `sub` inconnu, le backend crée automatiquement :
 
 ```json
 {
+  "id": "valeur-exacte-du-claim-sub",
   "externalSubject": "valeur-exacte-du-claim-sub",
   "email": "prenom.nom@sonatel.sn",
-  "role": "USER_ENABLEMENT",
+  "role": "BUSINESS_USER",
   "status": "ACTIVE",
   "accessScope": {
     "global": false,
     "applicationIds": [],
-    "businessUnitIds": ["bu-direction-grand-public"],
+    "businessUnitIds": [],
     "businessJobIds": [],
     "moduleIds": []
   }
 }
 ```
 
-En production, la résolution utilise exclusivement l'égalité
-`utilisateur.externalSubject == jwt.sub`. Un email ou un `preferred_username` ne rattache jamais
-automatiquement un compte. Un sujet inconnu ou un compte `DISABLED` reçoit `403`.
+La résolution utilise exclusivement l'égalité `utilisateur.externalSubject == jwt.sub`. L’email,
+le prénom, le nom et le login servent uniquement à initialiser l’affichage du profil. Les rôles du
+JWT sont ignorés. Un compte déjà créé puis désactivé dans DOVE reçoit `403`.
 
 Flux recommandé :
 
-1. l'Admin crée/import le compte et son périmètre ;
-2. l'équipe IAM ou un flux de provisioning fournit le `sub` ;
-3. `externalSubject` est enregistré de manière contrôlée ;
-4. l'utilisateur se connecte ;
-5. `GET /api/v1/me` renvoie les permissions DOVE effectives.
+1. l’équipe IAM crée l’identité dans Keycloak ;
+2. l’utilisateur se connecte à DOVE ;
+3. DOVE crée son profil `BUSINESS_USER` actif avec un périmètre vide ;
+4. l’Admin lui attribue son métier, sa Business Unit ou un autre rôle ;
+5. `GET /api/v1/me` renvoie immédiatement les permissions DOVE effectives.
 
 Ne jamais attribuer un rôle DOVE à partir de `realm_access.roles`, `resource_access` ou d'un rôle
-porté par le JWT.
+porté par le JWT. Dans la configuration locale de référence, aucun rôle fonctionnel DOVE n’est créé
+dans Keycloak.
 
 ## Rôles, permissions et périmètres
 
@@ -190,7 +199,7 @@ de production.
 
 - `401` : token absent, invalide ou expiré ; le frontend peut relancer la connexion après échec du
   renouvellement ;
-- `403` : compte local absent/désactivé ou permission manquante ; ne pas boucler sur le login ;
+- `403` : compte DOVE désactivé, hors périmètre ou permission manquante ; ne pas boucler sur le login ;
 - `404` : ressource absente ou masquée par le scope ;
 - `409` : conflit métier, doublon ou transition invalide.
 
@@ -205,8 +214,8 @@ sécurité.
 - PKCE `S256`, implicit et password grants désactivés ;
 - redirect URIs et Web Origins sans joker large ;
 - aucun secret dans Angular ;
-- comptes DOVE pré-provisionnés avec le bon `sub` ;
-- tests `401`, mauvaise audience, mauvais issuer, token expiré, utilisateur inconnu et désactivé ;
+- auto-provisionnement d’un utilisateur inconnu vérifié avec le rôle `BUSINESS_USER` ;
+- tests `401`, mauvaise audience, mauvais issuer, token expiré et utilisateur désactivé ;
 - CORS testé sur l'origine réelle ;
 - durée des tokens, MFA et logout validés avec l'équipe IAM ;
 - endpoints `/management` limités au réseau d'exploitation.

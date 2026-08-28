@@ -1,0 +1,71 @@
+spring:
+  devtools:
+    restart:
+      enabled: false
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    url: ${DOVE_DATABASE_URL}
+    username: ${DOVE_DATABASE_USERNAME}
+    password: ${DOVE_DATABASE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: DoveLocalKeycloakMySqlPool
+      auto-commit: false
+      maximum-pool-size: ${DOVE_DATABASE_POOL_MAX_SIZE:5}
+      minimum-idle: ${DOVE_DATABASE_POOL_MIN_IDLE:1}
+      connection-timeout: ${DOVE_DATABASE_CONNECTION_TIMEOUT_MS:30000}
+      validation-timeout: ${DOVE_DATABASE_VALIDATION_TIMEOUT_MS:5000}
+  jpa:
+    hibernate:
+      ddl-auto: update
+  liquibase:
+    enabled: true
+    contexts: local
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${DOVE_KEYCLOAK_ISSUER_URI:http://localhost:9080/realms/DOVE}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+server:
+  port: 8080
+
+jhipster:
+  cors:
+    allowed-origins: 'http://localhost:4200,http://127.0.0.1:4200'
+    allowed-methods: '*'
+    allowed-headers: '*'
+    exposed-headers: 'Authorization,Link,X-Total-Count,X-Dove-Total-Count,X-Dove-Page,X-Dove-Page-Size'
+    allow-credentials: true
+    max-age: 1800
+  security:
+    oauth2:
+      audience:
+        - dove-api
+
+dove:
+  seed:
+    enabled: false
+  auth:
+    dev-header-enabled: false
+    web-client-id: ${DOVE_KEYCLOAK_WEB_CLIENT_ID:dove-web}
+  storage:
+    provider: local
+    local-directory: .dove-storage-keycloak
+    public-base-url: http://localhost:8080
+    max-upload-bytes: 536870912
+
+logging:
+  level:
+    ROOT: INFO
+    org.hibernate.SQL: WARN
+    sn.dove.backend: INFO

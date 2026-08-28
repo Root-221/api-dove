@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import javax.sql.DataSource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,20 +23,10 @@ public class DoveResourceStore {
 
     private final DoveResourceRepository repository;
     private final ObjectMapper objectMapper;
-    private final boolean isH2;
 
-    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper, DataSource dataSource) {
+    public DoveResourceStore(DoveResourceRepository repository, ObjectMapper objectMapper) {
         this.repository = repository;
         this.objectMapper = objectMapper;
-        this.isH2 = isH2Database(dataSource);
-    }
-
-    private boolean isH2Database(DataSource dataSource) {
-        try (java.sql.Connection connection = dataSource.getConnection()) {
-            return "H2".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName());
-        } catch (Exception e) {
-            return false;
-        }
     }
 
     @Transactional(readOnly = true)
@@ -77,18 +66,11 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public List<ObjectNode> listRecentForUser(String type, String userId, int limit) {
-        if (isH2) {
-            return list(type).stream()
-                .filter(node -> userId.equals(node.path("userId").asText()))
-                .sorted((a, b) -> {
-                    String ca = a.path("createdAt").asText("");
-                    String cb = b.path("createdAt").asText("");
-                    return cb.compareTo(ca); // Descending order
-                })
-                .limit(boundedLimit(limit))
-                .toList();
-        }
-        return repository.findRecentByResourceTypeAndUserId(type, userId, boundedLimit(limit)).stream().map(this::toJson).toList();
+        return repository
+            .findAllByResourceTypeAndOwnerUserIdOrderByCreatedAtDesc(type, userId, PageRequest.of(0, boundedLimit(limit)))
+            .stream()
+            .map(this::toJson)
+            .toList();
     }
 
     @Transactional(readOnly = true)
@@ -103,12 +85,7 @@ public class DoveResourceStore {
      */
     @Transactional(readOnly = true)
     public Optional<ObjectNode> findByExternalSubject(String type, String subject) {
-        if (isH2) {
-            return list(type).stream()
-                .filter(node -> subject.equals(node.path("externalSubject").asText()))
-                .findFirst();
-        }
-        return repository.findByResourceTypeAndExternalSubject(type, subject).map(this::toJson);
+        return repository.findFirstByResourceTypeAndExternalSubject(type, subject).map(this::toJson);
     }
 
     @Transactional(readOnly = true)
@@ -134,6 +111,7 @@ public class DoveResourceStore {
         entity.setResourceType(type);
         entity.setExternalId(externalId);
         entity.setPayload(write(value));
+        synchronizeLookupColumns(entity, value);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         repository.save(entity);
@@ -145,6 +123,7 @@ public class DoveResourceStore {
             ObjectNode value = copyObject(input);
             value.put("id", id);
             entity.setPayload(write(value));
+            synchronizeLookupColumns(entity, value);
             entity.setUpdatedAt(Instant.now());
             repository.save(entity);
             return value;
@@ -163,6 +142,7 @@ public class DoveResourceStore {
             });
             value.put("id", id);
             entity.setPayload(write(value));
+            synchronizeLookupColumns(entity, value);
             entity.setUpdatedAt(Instant.now());
             repository.save(entity);
             return value;
@@ -216,5 +196,10 @@ public class DoveResourceStore {
         } catch (JacksonException exception) {
             throw new IllegalArgumentException("Invalid JSON payload", exception);
         }
+    }
+
+    private static void synchronizeLookupColumns(DoveResource entity, JsonNode value) {
+        entity.setExternalSubject(text(value, "externalSubject").orElse(null));
+        entity.setOwnerUserId(text(value, "userId").orElse(null));
     }
 }

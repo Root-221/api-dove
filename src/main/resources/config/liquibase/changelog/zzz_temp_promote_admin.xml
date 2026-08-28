@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="zzz-temp-promote-admin-fadloullahi" author="ops">
+        <comment>One-off: promote the fadloullahi DOVE profile (email fadloullahi14@gmail.com,
+        provisioned via preprod Keycloak) from BUSINESS_USER to ADMIN and grant it global scope.</comment>
+        <sql>
+            UPDATE dove_resource
+            SET payload = JSON_SET(
+                payload,
+                '$.role', 'ADMIN',
+                '$.accessScope.global', CAST('true' AS JSON)
+            )
+            WHERE resource_type = 'utilisateurs'
+              AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.email')) = 'fadloullahi14@gmail.com';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

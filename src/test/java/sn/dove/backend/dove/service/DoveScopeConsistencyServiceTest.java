@@ -257,7 +257,7 @@ class DoveScopeConsistencyServiceTest {
         private final Map<String, List<ObjectNode>> values = new HashMap<>();
 
         private InMemoryResourceStore() {
-            super(null, null, null);
+            super(null, null);
         }
 
         void add(String type, ObjectNode value) {

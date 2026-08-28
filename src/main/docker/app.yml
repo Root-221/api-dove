@@ -5,15 +5,15 @@ services:
     image: dovebackend
     environment:
       - _JAVA_OPTIONS=-Xmx512m -Xms256m
-      - SPRING_PROFILES_ACTIVE=prod,api-docs,secret-samples
+      - SPRING_PROFILES_ACTIVE=dev,api-docs
       - MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED=true
       - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_OIDC_ISSUER_URI=http://keycloak:9080/realms/jhipster
       - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_OIDC_CLIENT_ID=web_app
       - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_OIDC_CLIENT_SECRET=web_app
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgresql:5432/doveBackend
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/doveBackend?serverTimezone=UTC
       - SPRING_DATASOURCE_USERNAME=doveBackend
-      - SPRING_DATASOURCE_PASSWORD=
-      - SPRING_LIQUIBASE_URL=jdbc:postgresql://postgresql:5432/doveBackend
+      - SPRING_DATASOURCE_PASSWORD=doveBackend
+      - SPRING_LIQUIBASE_URL=jdbc:mysql://mysql:3306/doveBackend?serverTimezone=UTC
     ports:
       - 127.0.0.1:8080:8080
     healthcheck:
@@ -26,14 +26,14 @@ services:
       timeout: 5s
       retries: 40
     depends_on:
-      postgresql:
+      mysql:
         condition: service_healthy
       keycloak:
         condition: service_healthy
-  postgresql:
+  mysql:
     extends:
-      file: ./postgresql.yml
-      service: postgresql
+      file: ./mysql.yml
+      service: mysql
   keycloak:
     extends:
       file: ./keycloak.yml

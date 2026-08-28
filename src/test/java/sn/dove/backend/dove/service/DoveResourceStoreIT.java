@@ -15,7 +15,8 @@ import sn.dove.backend.IntegrationTest;
  * Covers the DoveResourceStore changes made for the "full-table-scan on every request"
  * (findByExternalSubject) and "unbounded list endpoints" (listRecent/listRecentForUser/
  * list(type, maxRows)) fixes, plus the duplicate-resource 409 mapping. Runs against the real
- * Testcontainers Postgres because the lookups rely on native jsonb queries that H2 can't run.
+ * Testcontainers MySQL so integration tests exercise the same database family as DOVE's
+ * deployed environments.
  *
  * Each test uses its own randomly-suffixed resource type so it can't collide with real
  * "utilisateurs"/"notifications"/"auditEvents"/"contenus" data or with other tests.

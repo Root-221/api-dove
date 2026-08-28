@@ -13,7 +13,7 @@
         the payload avoids duplicating the value into a separate column, which would need a
         backfill for already-persisted rows and risk drifting out of sync with the payload.
     -->
-    <changeSet id="20260823090000-1" author="dove">
+    <changeSet id="20260823090000-1" author="dove" dbms="postgresql">
         <sql>
             CREATE INDEX ix_dove_resource_external_subject
                 ON dove_resource (resource_type, (payload::jsonb ->> 'externalSubject'))
@@ -29,7 +29,7 @@
         user's notifications directly from SQL instead of listing every notification row and
         filtering/sorting in Java.
     -->
-    <changeSet id="20260823090000-2" author="dove">
+    <changeSet id="20260823090000-2" author="dove" dbms="postgresql">
         <sql>
             CREATE INDEX ix_dove_resource_notifications_user
                 ON dove_resource (resource_type, (payload::jsonb ->> 'userId'), created_at DESC)

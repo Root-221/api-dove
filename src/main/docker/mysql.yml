@@ -1,0 +1,17 @@
+# Local MySQL service used only by the optional Spring "dev" profile.
+name: dovebackend
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: doveBackend
+      MYSQL_USER: doveBackend
+      MYSQL_PASSWORD: doveBackend
+      MYSQL_ROOT_PASSWORD: root
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - 127.0.0.1:3307:3306

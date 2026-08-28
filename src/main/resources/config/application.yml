@@ -109,6 +109,10 @@ spring:
         - api-docs
         # Uncomment to activate TLS for the dev profile
         #- tls
+      preprod:
+        - cloud
+      prod:
+        - cloud
   jmx:
     enabled: false
   data:
@@ -121,6 +125,7 @@ spring:
       hibernate.jdbc.time_zone: UTC
       hibernate.timezone.default_storage: NORMALIZE
       hibernate.type.preferred_instant_jdbc_type: TIMESTAMP
+      hibernate.type.preferred_uuid_jdbc_type: VARCHAR
       hibernate.id.new_generator_mappings: true
       hibernate.connection.provider_disables_autocommit: true
       hibernate.cache.use_second_level_cache: true

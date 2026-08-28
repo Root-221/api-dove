@@ -118,7 +118,13 @@ Desktop.ini
 /bin/
 /deploy/
 /.dove-local/
+/.dove-local-keycloak/
+/.env
+/.env.*
+!/.env.example
+!/.env.*.example
 /.dove-storage/
+/.dove-storage-keycloak/
 
 ######################
 # Logs
@@ -131,6 +137,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.class
 *.*~
 *~

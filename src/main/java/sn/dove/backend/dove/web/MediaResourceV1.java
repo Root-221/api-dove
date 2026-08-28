@@ -135,10 +135,23 @@ public class MediaResourceV1 {
             throw api.notFound("upload");
         }
         long contentLength = request.getContentLengthLong();
+        long expectedLength = upload.path("sizeBytes").asLong(-1);
+        if (contentLength < 0) {
+            throw new ResponseStatusException(HttpStatus.LENGTH_REQUIRED, "Content-Length is required");
+        }
+        if (contentLength != expectedLength) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded size does not match the prepared upload");
+        }
         if (contentLength > properties.getStorage().getMaxUploadBytes()) {
             throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE);
         }
-        storage.writeUpload(uploadId, request.getInputStream());
+        storage.writeUpload(
+            uploadId,
+            upload.path("storageKey").asText(),
+            upload.path("mimeType").asText("application/octet-stream"),
+            contentLength,
+            request.getInputStream()
+        );
         return ResponseEntity.noContent().build();
     }
 
